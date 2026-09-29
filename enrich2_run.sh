@@ -1,0 +1,1 @@
+enrich_cmd enrich2_config WLS wt

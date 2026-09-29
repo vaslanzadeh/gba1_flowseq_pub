@@ -1,0 +1,73 @@
+
+# config for analysis
+
+# most CPUs to ever use at once
+max_cpus: 10
+
+# amplicons sequenced by PacBio
+amplicons: input_files/GBA1_PacBio.gb
+
+# the primary target for which we are calling mutations
+primary_target: GBA1_PacBio
+
+# how to parse the amplicon
+feature_parse_specs: input_files/GBA1_feature_parse_specs.yaml
+
+# list of PacBio sequencing runs linking barcodes to variants
+pacbio_runs: input_files/PacBio_runs.csv
+
+
+
+# enrich2 barcode counts
+
+barcode_counts_dir: results/counts/barcode_counts/
+barcode_scores_dir: results/scores/bc_scores/
+
+
+aligned_CCSs: results/process_ccs/GBA1_PacBio_aligned.csv
+filtered_CCSs: results/process_ccs/GBA1_PacBio_filtered.csv
+
+
+
+# output directories / files
+summary_dir: results/summary
+CCS_dir: results/CCS
+process_ccs_dir: results/process_ccs
+figs_dir: results/figures
+figs_dir_barcod_freq: results/figures/barcode_freq
+
+sfmap_dir: results/figures/sfmaps/
+sfmap_enrich2_dir: results/figures/sfmaps/enrich2/
+
+scores_dir: results/scores/
+variants_dir: results/variants/
+
+Enrich2_counts_dir: results/Enrich2_counts/
+
+
+processed_ccs_file: results/process_ccs/processed_ccs.csv
+nt_variant_table_file: results/variants/nucleotide_variant_table.csv
+codon_variant_table_file: results/variants/codon_variant_table.csv
+codon_variant_table_file_bcRevCom: results/variants/codon_variant_table.csv
+codon_variant_table_forEnrich2: results/variants/barcode_variant_enrich2.tab
+
+variant_counts_file: results/counts/variant_counts.csv
+
+
+
+# max error rate in gene / barcode CCSs retained for consensu building
+max_error_rate: 0.000001
+
+
+# Parameters for processing Illumina barcodes, assuming this structure:
+#  [R2 binds] - [upstream] - [barcode] - [downstream] - [R1 binds]
+#  This orientation is hard-wired in the barcode parser, but here it is opposite
+#  Therefore, supplied the "downstream" sequence as reverse complemented upstream
+# Passed to `dms_variants.illuminabarcodeparser.IlluminaBarcodeParser`:
+illumina_barcode_parser_params:
+  upstream: CAAGGCTTCCTT
+  downstream: ''
+  minq: 0
+  upstream_mismatch: 1
+  downstream_mismatch: 0
+  bc_orientation: 'R2'

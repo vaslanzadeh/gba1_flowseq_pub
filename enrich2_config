@@ -1,0 +1,100 @@
+{
+  "conditions": [
+    {
+      "name": "gba1_facs_replicate1", 
+      "selections": [
+        {
+          "libraries": [
+            {
+              "barcodes": {
+                "map file": "results/variants/barcode_variant_enrich2.tab"
+              }, 
+              "fastq": {
+                "filters": {}, 
+                "reads": "GBA1_R1_Bin1_trimmed.fastq.gz", 
+                "reverse": false
+              }, 
+              "name": "bin1", 
+              "report filtered reads": true, 
+              "timepoint": 0, 
+              "variants": {
+                "use aligner": false, 
+                "wild type": {
+                  "coding": true, 
+                  "reference offset": 0, 
+                  "sequence": "atggagttttcaagtccttccagagaggaatgtcccaagcctttgagtagggtaagcatcatggctggcagcctcacaggattgcttctacttcaggcagtgtcgtgggcatcaggtgcccgcccctgcatccctaaaagcttcggctacagctcggtggtgtgtgtctgcaatgccacatactgtgactcctttgaccccccgacctttcctgcccttggtaccttcagccgctatgagagtacacgcagtgggcgacggatggagctgagtatggggcccatccaggctaatcacacgggcacaggcctgctactgaccctgcagccagaacagaagttccagaaagtgaagggatttggaggggccatgacagatgctgctgctctcaacatccttgccctgtcaccccctgcccaaaatttgctacttaaatcgtacttctctgaagaaggaatcggatataacatcatccgggtacccatggccagctgtgacttctccatccgcacctacacctatgcagacacccctgatgatttccagttgcacaacttcagcctcccagaggaagataccaagctcaagatacccctgattcaccgagccctgcagttggcccagcgtcccgtttcactccttgccagcccctggacatcacccacttggctcaagaccaatggagcggtgaatgggaaggggtcactcaagggacagcccggagacatctaccaccagacctgggccagatactttgtgaagttcctggatgcctatgctgagcacaagttacagttctgggcagtgacagctgaaaatgagccttctgctgggctgttgagtggataccccttccagtgcctgggcttcacccctgaacatcagcgagacttcattgcccgtgacctaggtcctaccctcgccaacagtactcaccacaatgtccgcctactcatgctggatgaccaacgcttgctgctgccccactgggcaaaggtggtactgacagacccagaagcagctaaatatgttcatggcattgctgtacattggtacctggactttctggctccagccaaagccaccctaggggagacacaccgcctgttccccaacaccatgctctttgcctcagaggcctgtgtgggctccaagttctgggagcagagtgtgcggctaggctcctgggatcgagggatgcagtacagccacagcatcatcacgaacctcctgtaccatgtggtcggctggaccgactggaaccttgccctgaaccccgaaggaggacccaattgggtgcgtaactttgtcgacagtcccatcattgtagacatcaccaaggacacgttttacaaacagcccatgttctaccaccttggccacttcagcaagttcattcctgagggctcccagagagtggggctggttgccagtcagaagaacgacctggacgcagtggcactgatgcatcccgatggctctgctgttgtggtcgtgctaaaccgctcctctaaggatgtgcctcttaccatcaaggatcctgctgtgggcttcctggagacaatctcacctggctactccattcacacctacctgtggcgtcgccagtga"
+                }
+              }
+            }, 
+            {
+              "barcodes": {
+                "map file": "results/variants/barcode_variant_enrich2.tab"
+              }, 
+              "fastq": {
+                "filters": {}, 
+                "reads": "GBA1_R1_Bin2_trimmed.fastq.gz", 
+                "reverse": false
+              }, 
+              "name": "bin2", 
+              "report filtered reads": true, 
+              "timepoint": 1, 
+              "variants": {
+                "use aligner": false, 
+                "wild type": {
+                  "coding": true, 
+                  "reference offset": 0, 
+                  "sequence": "atggagttttcaagtccttccagagaggaatgtcccaagcctttgagtagggtaagcatcatggctggcagcctcacaggattgcttctacttcaggcagtgtcgtgggcatcaggtgcccgcccctgcatccctaaaagcttcggctacagctcggtggtgtgtgtctgcaatgccacatactgtgactcctttgaccccccgacctttcctgcccttggtaccttcagccgctatgagagtacacgcagtgggcgacggatggagctgagtatggggcccatccaggctaatcacacgggcacaggcctgctactgaccctgcagccagaacagaagttccagaaagtgaagggatttggaggggccatgacagatgctgctgctctcaacatccttgccctgtcaccccctgcccaaaatttgctacttaaatcgtacttctctgaagaaggaatcggatataacatcatccgggtacccatggccagctgtgacttctccatccgcacctacacctatgcagacacccctgatgatttccagttgcacaacttcagcctcccagaggaagataccaagctcaagatacccctgattcaccgagccctgcagttggcccagcgtcccgtttcactccttgccagcccctggacatcacccacttggctcaagaccaatggagcggtgaatgggaaggggtcactcaagggacagcccggagacatctaccaccagacctgggccagatactttgtgaagttcctggatgcctatgctgagcacaagttacagttctgggcagtgacagctgaaaatgagccttctgctgggctgttgagtggataccccttccagtgcctgggcttcacccctgaacatcagcgagacttcattgcccgtgacctaggtcctaccctcgccaacagtactcaccacaatgtccgcctactcatgctggatgaccaacgcttgctgctgccccactgggcaaaggtggtactgacagacccagaagcagctaaatatgttcatggcattgctgtacattggtacctggactttctggctccagccaaagccaccctaggggagacacaccgcctgttccccaacaccatgctctttgcctcagaggcctgtgtgggctccaagttctgggagcagagtgtgcggctaggctcctgggatcgagggatgcagtacagccacagcatcatcacgaacctcctgtaccatgtggtcggctggaccgactggaaccttgccctgaaccccgaaggaggacccaattgggtgcgtaactttgtcgacagtcccatcattgtagacatcaccaaggacacgttttacaaacagcccatgttctaccaccttggccacttcagcaagttcattcctgagggctcccagagagtggggctggttgccagtcagaagaacgacctggacgcagtggcactgatgcatcccgatggctctgctgttgtggtcgtgctaaaccgctcctctaaggatgtgcctcttaccatcaaggatcctgctgtgggcttcctggagacaatctcacctggctactccattcacacctacctgtggcgtcgccagtga"
+                }
+              }
+            }, 
+            {
+              "barcodes": {
+                "map file": "results/variants/barcode_variant_enrich2.tab"
+              }, 
+              "fastq": {
+                "filters": {}, 
+                "reads": "GBA1_R1_Bin3_trimmed.fastq.gz", 
+                "reverse": false
+              }, 
+              "name": "bin3", 
+              "report filtered reads": true, 
+              "timepoint": 2, 
+              "variants": {
+                "use aligner": false, 
+                "wild type": {
+                  "coding": true, 
+                  "reference offset": 0, 
+                  "sequence": "atggagttttcaagtccttccagagaggaatgtcccaagcctttgagtagggtaagcatcatggctggcagcctcacaggattgcttctacttcaggcagtgtcgtgggcatcaggtgcccgcccctgcatccctaaaagcttcggctacagctcggtggtgtgtgtctgcaatgccacatactgtgactcctttgaccccccgacctttcctgcccttggtaccttcagccgctatgagagtacacgcagtgggcgacggatggagctgagtatggggcccatccaggctaatcacacgggcacaggcctgctactgaccctgcagccagaacagaagttccagaaagtgaagggatttggaggggccatgacagatgctgctgctctcaacatccttgccctgtcaccccctgcccaaaatttgctacttaaatcgtacttctctgaagaaggaatcggatataacatcatccgggtacccatggccagctgtgacttctccatccgcacctacacctatgcagacacccctgatgatttccagttgcacaacttcagcctcccagaggaagataccaagctcaagatacccctgattcaccgagccctgcagttggcccagcgtcccgtttcactccttgccagcccctggacatcacccacttggctcaagaccaatggagcggtgaatgggaaggggtcactcaagggacagcccggagacatctaccaccagacctgggccagatactttgtgaagttcctggatgcctatgctgagcacaagttacagttctgggcagtgacagctgaaaatgagccttctgctgggctgttgagtggataccccttccagtgcctgggcttcacccctgaacatcagcgagacttcattgcccgtgacctaggtcctaccctcgccaacagtactcaccacaatgtccgcctactcatgctggatgaccaacgcttgctgctgccccactgggcaaaggtggtactgacagacccagaagcagctaaatatgttcatggcattgctgtacattggtacctggactttctggctccagccaaagccaccctaggggagacacaccgcctgttccccaacaccatgctctttgcctcagaggcctgtgtgggctccaagttctgggagcagagtgtgcggctaggctcctgggatcgagggatgcagtacagccacagcatcatcacgaacctcctgtaccatgtggtcggctggaccgactggaaccttgccctgaaccccgaaggaggacccaattgggtgcgtaactttgtcgacagtcccatcattgtagacatcaccaaggacacgttttacaaacagcccatgttctaccaccttggccacttcagcaagttcattcctgagggctcccagagagtggggctggttgccagtcagaagaacgacctggacgcagtggcactgatgcatcccgatggctctgctgttgtggtcgtgctaaaccgctcctctaaggatgtgcctcttaccatcaaggatcctgctgtgggcttcctggagacaatctcacctggctactccattcacacctacctgtggcgtcgccagtga"
+                }
+              }
+            }, 
+            {
+              "barcodes": {
+                "map file": "results/variants/barcode_variant_enrich2.tab"
+              }, 
+              "fastq": {
+                "filters": {}, 
+                "reads": "GBA1_R1_Bin4_trimmed.fastq.gz", 
+                "reverse": false
+              }, 
+              "name": "bin4", 
+              "report filtered reads": true, 
+              "timepoint": 3, 
+              "variants": {
+                "use aligner": false, 
+                "wild type": {
+                  "coding": true, 
+                  "reference offset": 0, 
+                  "sequence": "atggagttttcaagtccttccagagaggaatgtcccaagcctttgagtagggtaagcatcatggctggcagcctcacaggattgcttctacttcaggcagtgtcgtgggcatcaggtgcccgcccctgcatccctaaaagcttcggctacagctcggtggtgtgtgtctgcaatgccacatactgtgactcctttgaccccccgacctttcctgcccttggtaccttcagccgctatgagagtacacgcagtgggcgacggatggagctgagtatggggcccatccaggctaatcacacgggcacaggcctgctactgaccctgcagccagaacagaagttccagaaagtgaagggatttggaggggccatgacagatgctgctgctctcaacatccttgccctgtcaccccctgcccaaaatttgctacttaaatcgtacttctctgaagaaggaatcggatataacatcatccgggtacccatggccagctgtgacttctccatccgcacctacacctatgcagacacccctgatgatttccagttgcacaacttcagcctcccagaggaagataccaagctcaagatacccctgattcaccgagccctgcagttggcccagcgtcccgtttcactccttgccagcccctggacatcacccacttggctcaagaccaatggagcggtgaatgggaaggggtcactcaagggacagcccggagacatctaccaccagacctgggccagatactttgtgaagttcctggatgcctatgctgagcacaagttacagttctgggcagtgacagctgaaaatgagccttctgctgggctgttgagtggataccccttccagtgcctgggcttcacccctgaacatcagcgagacttcattgcccgtgacctaggtcctaccctcgccaacagtactcaccacaatgtccgcctactcatgctggatgaccaacgcttgctgctgccccactgggcaaaggtggtactgacagacccagaagcagctaaatatgttcatggcattgctgtacattggtacctggactttctggctccagccaaagccaccctaggggagacacaccgcctgttccccaacaccatgctctttgcctcagaggcctgtgtgggctccaagttctgggagcagagtgtgcggctaggctcctgggatcgagggatgcagtacagccacagcatcatcacgaacctcctgtaccatgtggtcggctggaccgactggaaccttgccctgaaccccgaaggaggacccaattgggtgcgtaactttgtcgacagtcccatcattgtagacatcaccaaggacacgttttacaaacagcccatgttctaccaccttggccacttcagcaagttcattcctgagggctcccagagagtggggctggttgccagtcagaagaacgacctggacgcagtggcactgatgcatcccgatggctctgctgttgtggtcgtgctaaaccgctcctctaaggatgtgcctcttaccatcaaggatcctgctgtgggcttcctggagacaatctcacctggctactccattcacacctacctgtggcgtcgccagtga"
+                }
+              }
+            }
+          ], 
+          "name": "sort"
+        }
+      ]
+    }
+  ], 
+  "name": "gba1_facs_replicate1", 
+  "output directory": "enrich2_counts/"
+}
