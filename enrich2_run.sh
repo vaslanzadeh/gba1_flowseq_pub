@@ -1,1 +1,1 @@
-enrich_cmd enrich2_config WLS wt
+enrich_cmd --no-plots enrich2_config WLS wt
