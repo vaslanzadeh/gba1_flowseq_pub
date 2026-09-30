@@ -12,7 +12,17 @@ All datasets required to run the scripts, including the input files for each ste
 
 First, download the Zenodo dataset and place it in the working directory.
 
-### 1. Align PacBio HiFi reads to the GBA1 amplicon
+### 1. Design mutagenic oligos
+
+* Run `MOLigos_Script_GBA1.ipynb` to generate the mutagenic oligos used to mutagenise GBA1 codons 2 to 536.
+* The oligos are generated as 10 separate pools, matching the 10 pools in which mutagenesis was carried out before they were combined.
+* The output is written in Excel format to:
+
+```
+  results/mutagenesis_primers/
+```
+
+### 2. Align PacBio HiFi reads to the GBA1 amplicon
 
 * Run `process_PacBio_sequencing.py`. This processes the PacBio Revio sequencing output:
 
@@ -27,9 +37,9 @@ First, download the Zenodo dataset and place it in the working directory.
   GBA1_PacBio_filtered.csv
 ```
 
-### 2. Link barcodes to variants and create the barcode–variant table
+### 3. Link barcodes to variants and create the barcode–variant table
 
-* Run `pbData_analysis.ipynb`. This notebook processes the outputs of step 1:
+* Run `pbData_analysis.ipynb`. This notebook processes the outputs of step 2:
 
 ```
   GBA1_PacBio_aligned.csv
@@ -38,7 +48,7 @@ First, download the Zenodo dataset and place it in the working directory.
 
 * It generates the barcode–variant table, together with coverage statistics and QC metrics.
 
-### 3. Trim adapters from Flow-Seq sorted barcode sequencing
+### 4. Trim adapters from Flow-Seq sorted barcode sequencing
 
 * Run `trimmomatic_run.sh` to remove 30 nt adapters from the Illumina barcode sequencing reads. This step requires the following fastq files, available from GEO accession GSE346421:
 
@@ -58,18 +68,18 @@ First, download the Zenodo dataset and place it in the working directory.
   GBA1_R1_Bin4_trimmed.fastq.gz
 ```
 
-### 4. Count barcodes in each bin using Enrich2
+### 5. Count barcodes in each bin using Enrich2
 
-* Use the configuration files in the `Enrich2_counts` folder to run `enrich2_run.sh`. This processes the trimmed reads from step 3.
+* Use the configuration files in the `Enrich2_counts` folder to run `enrich2_run.sh`. This processes the trimmed reads from step 4.
 * This step counts the barcodes in each sorted bin, based on Illumina sequencing of gDNA extracted from the cells, and generates several output files, including:
 
 ```
   enrich2_counts/tsv/sort_sel/main_barcodes_counts_unfiltered.tsv
 ```
 
-### 5. Variant scoring
+### 6. Variant scoring
 
-* Run `gba1_flowSeq_analysis.ipynb` to process the Enrich2 count file from step 4:
+* Run `gba1_flowSeq_analysis.ipynb` to process the Enrich2 count file from step 5:
 
 ```
   enrich2_counts/tsv/sort_sel/main_barcodes_counts_unfiltered.tsv
