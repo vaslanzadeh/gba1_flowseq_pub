@@ -1,0 +1,1288 @@
+---
+title: "GBA Region Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Overview
+This analysis investigates MAVE flow-seq scores for variants associated with previously established GBA1 structural features.
+
+1. N-Linked glycosylation residues
+2. Domain I: Disulfide bridge residues
+3. Catalytic cavity residues
+4. SapC interactor residues
+5. LIMP-2 interactor residues
+
+## Required packages
+
+```{r packages}
+library(dplyr)
+library(readxl)
+library(ggplot2)
+library(patchwork)
+library(ggiraph)
+library(htmlwidgets)
+library(ggbeeswarm)
+```
+
+
+## Load raw data
+```{r load-data}
+
+MasterFile_Input <- readxl::read_excel("Supplementary Table 2_MAVE Master File.xlsx")
+
+Mave_Annotated <- MasterFile_Input %>%
+  mutate(
+    Residue = paste0(WT_AA, Position),
+    Barcode_Group = ifelse(
+      MAVE_Barcode_Count >= 3,
+      "≥3 barcodes",
+      "<3 barcodes"
+    )
+  ) %>%
+  dplyr::select(
+    Residue, Variant, Position, WT_AA, Mutant_AA,
+    MAVE_Score, MAVE_Barcode_Count,
+    MAVE_Empirical_p_Value, MAVE_Empiracal_p_Interpretation, Barcode_Group)
+```
+  
+# Stop Codon Score Calculation
+Calculate the average stop codon score of GBA1 variants from the MAVE flow-seq dataset
+  
+```{r Stop-codon Calculation}
+####Stop Codon Analysis####
+GBAAnalysisStopCodon <- MasterFile_Input %>%
+  mutate(Position = as.numeric(Position)) %>%
+  filter(
+    WT_AA != Mutant_AA,
+    Mutant_AA == "*",
+    !is.na(MAVE_Score),
+    Position > 20
+  )
+
+stop_median <- median(
+  GBAAnalysisStopCodon$MAVE_Score,
+  na.rm = TRUE
+)
+```  
+
+## Analysis of N-Linked Glycosylation Residues
+
+```{r N linked glycosylation analysis}
+# 1 Identify N linked glycosylation residues
+N_Linked_Glycosylation_Residues <- c("N58", "N98", "N185", "N309")
+
+# 2 Filter data
+Mave_Glyco <- Mave_Annotated %>%
+  filter(
+    Residue %in% N_Linked_Glycosylation_Residues,
+    !is.na(MAVE_Score)
+  ) %>%
+  mutate(
+    Significant = MAVE_Empirical_p_Value < 0.05
+  )
+
+#Preserve desired order
+Mave_Glyco$Residue <- factor(
+  Mave_Glyco$Residue,
+  levels = N_Linked_Glycosylation_Residues
+)
+
+# 3 Count variants per residue
+Count_df <- Mave_Glyco %>%
+  group_by(Residue) %>%
+  summarise(
+    n = n()
+  ) %>%
+  mutate(
+    y = 0.4
+  )
+
+
+# 4 N Linked Glycosylation Plot 
+NLinked_Glycosylation_Plot <- ggplot(
+  Mave_Glyco,
+  aes(
+    x = Residue,
+    y = MAVE_Score
+  )
+) +
+  
+  # Boxplots
+  geom_boxplot(
+    fill = "white",
+    outlier.shape = NA,
+    width = 0.6,
+    linewidth = 0.1
+  ) +
+  
+  # Individual variants
+  geom_quasirandom_interactive( 
+    aes( colour = Significant, 
+         shape = Barcode_Group, 
+         tooltip = paste0( 
+           "<b>Mutation:</b> ", 
+           Variant, "<br><b>Residue:</b> ", 
+           round(MAVE_Score, 3), "<br><b>p value:</b> ", 
+           signif(MAVE_Empirical_p_Value, 3), "<br><b>Barcodes:</b> ",
+           MAVE_Barcode_Count ), data_id = Variant ), 
+    width = 0.32, 
+    size = 0.65, 
+    alpha = 0.6, 
+    stroke = 0.1 ) +
+  
+  # Sample sizes
+  geom_text(
+    data = Count_df,
+    aes(
+      x = Residue,
+      y = y,
+      label = paste0("n=", n)
+    ),
+    inherit.aes = FALSE,
+    size = 1.5
+  ) +
+  
+  # STOP control median line
+  geom_hline(
+    yintercept = stop_median,
+    colour = "darkred",
+    linewidth = 1,
+    alpha = 0.15
+  )+
+  
+  # Neutral reference
+  geom_hline(
+    yintercept = 0,
+    colour = "darkgreen",
+    linewidth = 0.15,
+    linetype = "dashed",
+    alpha = 0.75
+  ) +
+  
+  # Point colours
+  scale_colour_manual( 
+    values = c( "TRUE" = "red", "FALSE" = "black" ), 
+    guide = "none" ) + 
+  # Point shapes 
+  scale_shape_manual(
+    values = c( "≥3 barcodes" = 16, "<3 barcodes" = 1 ), 
+    guide = "none" ) +
+  
+  labs(  x = "N-linked Glycosylation Residue", y = "Flow-Seq Score") +
+  
+  coord_cartesian(
+    ylim = c( -1.5, 0.5  )) +
+  
+  theme_bw() +
+  
+  theme(
+    # backgrounds
+    panel.background = element_rect(fill = "transparent", colour = NA),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    
+    plot.background = element_rect(fill = "transparent", colour = NA),
+    legend.background = element_rect(fill = "transparent", colour = NA),
+    
+    # grid
+    panel.grid.major.x = element_line(colour = "gray90", linewidth = 0.1),
+    panel.grid.major.y = element_line(colour = "gray90", linewidth = 0.1),
+    
+    panel.grid.minor = element_blank(),
+    
+    # axes
+    axis.text.x = element_text(size = 7),
+    axis.title.x = element_text(size = 7, face = "bold"),
+    axis.text.y = element_text(size = 7 ),
+    
+    axis.title.y = element_text(size = 7, face = "bold"),
+    axis.ticks = element_line(colour = "black", linewidth = 0.1),
+    axis.ticks.length = unit(0.1, "cm")
+  )
+
+# Save plot
+ggsave("NLinkedGlycosylation.pdf", 
+       plot = NLinked_Glycosylation_Plot,
+       device = cairo_pdf,
+       width = 80,
+       height = 57,
+       units = "mm")
+```
+
+# Analysis of Disulfide Bridge Residues
+
+```{r Disulfide bridge analysis}
+# 1 Identify disulfide bridge residues
+Disulfide_Bridge_Cys_Residues <- c("C43", "C55", "C57", "C62")
+
+# 2 Filter data
+Mave_Cys <- Mave_Annotated %>%
+  filter(
+    Residue %in% Disulfide_Bridge_Cys_Residues,
+    !is.na(MAVE_Score)
+  ) %>%
+  mutate(
+    Significant = MAVE_Empirical_p_Value < 0.05
+  )
+
+# Preserve desired order
+Mave_Cys$Residue <- factor(
+  Mave_Cys$Residue,
+  levels = Disulfide_Bridge_Cys_Residues
+)
+
+# 3 Count variants per residue
+Count_df <- Mave_Cys %>%
+  group_by(Residue) %>%
+  summarise(
+    n = n()
+  ) %>%
+  mutate(
+    y = 0.4
+  )
+
+
+# 4 Dilsulfide bridge Plot
+DisulfideBridge_Cys_Plot <- ggplot(Mave_Cys, aes(x = Residue, y = MAVE_Score)) +
+  
+  # Boxplots
+  geom_boxplot(
+    fill = "white",
+    outlier.shape = NA,
+    width = 0.6,
+    linewidth = 0.1
+  ) +
+  
+  # Individual variants
+  geom_quasirandom_interactive( 
+    aes( colour = Significant, 
+         shape = Barcode_Group, 
+         tooltip = paste0( 
+           "<b>Mutation:</b> ", 
+           Variant, "<br><b>Residue:</b> ", 
+           round(MAVE_Score, 3), "<br><b>p value:</b> ", 
+           signif(MAVE_Empirical_p_Value, 3), "<br><b>Barcodes:</b> ", 
+           MAVE_Barcode_Count ), data_id = Variant ), 
+    width = 0.32, 
+    size = 0.65, 
+    alpha = 0.6, 
+    stroke = 0.1 ) +
+  
+  # Sample sizes
+  geom_text(
+    data = Count_df,
+    aes(x = Residue, y = y, label = paste0("n=", n)),
+    inherit.aes = FALSE,
+    size = 1.5
+  ) +
+  # STOP control median line
+  geom_hline(
+    yintercept = stop_median,
+    colour = "darkred",
+    linewidth = 1,
+    alpha = 0.15
+  )+
+  
+  # Neutral reference
+  geom_hline(
+    yintercept = 0,
+    colour = "darkgreen",
+    linewidth = 0.15,
+    linetype = "dashed",
+    alpha = 0.75
+  ) +
+  
+  scale_colour_manual(
+    values = c(
+      "TRUE" = "red",
+      "FALSE" = "black"
+    ),
+    guide = "none"
+  ) +
+  scale_shape_manual(
+    values = c(
+      "≥3 barcodes" = 16,
+      "<3 barcodes" = 1
+    ),
+    guide = "none"
+  ) +
+  
+  labs(
+    x = "Disulfide Bridge Cysteine Residue",
+    y = "Flow-Seq Score"
+  ) +
+  
+  coord_cartesian(
+    ylim = c(
+      -1.5,
+      0.5
+    )
+  ) +
+  
+  theme_bw() +
+  theme(
+    # backgrounds
+    panel.background = element_rect(fill = "transparent", colour = NA),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    plot.background = element_rect(fill = "transparent", colour = NA),
+    legend.background = element_rect(fill = "transparent", colour = NA),
+    
+    # grid
+    panel.grid.major.x = element_line(colour = "gray90", linewidth = 0.1),
+    panel.grid.major.y = element_line(colour = "gray90", linewidth = 0.1),
+    panel.grid.minor = element_blank(),
+    
+    # axes
+    axis.text.x = element_text(size = 7),
+    axis.title.x = element_text(size = 7, face = "bold"),
+    axis.text.y = element_text(size = 7),
+    axis.title.y = element_text(size = 7, face = "bold"),
+    
+    axis.ticks = element_line(colour = "black", linewidth = 0.1),
+    axis.ticks.length = unit(0.1, "cm"),
+    
+  )
+
+print(DisulfideBridge_Cys_Plot)
+
+ggsave("DisulfideBridge_Cys_Plot.pdf", 
+              plot = DisulfideBridge_Cys_Plot,
+              device = cairo_pdf,
+              width = 80,
+              height = 57,
+              units = "mm")
+```
+
+# Analysis of Cavity Lining
+
+```{r Cavity lining analysis}
+
+# Identify residues
+Cavity_Residues <- c("R159",  "D166",  "F167",  "W218",  "N273", "E274", "Y283", 
+                     "F285", "Y352", "E379", "C381", "S384", "W420", "N435", "F436", "V437") 
+# Catalytic residues 
+Cavity_Catalytic_Residues <- c("E274", "E379") 
+
+# Catalytic cavity-lining residues 
+Cavity_CavityLining_Residues <- c("R159",  "D166",  "F167",  "W218",  "N273", "Y283", 
+                                  "F285", "Y352", "C381", "S384", "W420", "N435", "F436", "V437")
+
+
+
+# 2 Filter cavity residues
+Mave_Cavity <- Mave_Annotated %>% 
+  filter( Residue %in% Cavity_Residues, !is.na(MAVE_Score) ) %>% 
+  mutate(Cavity_Group = case_when(
+    Residue %in% Cavity_Catalytic_Residues ~ "Catalytic", 
+    Residue %in% Cavity_CavityLining_Residues ~ "Cavity lining", 
+    TRUE ~ "Other" ),
+    Significant = MAVE_Empirical_p_Value < 0.05)
+
+Mave_Cavity$Residue <- factor(Mave_Cavity$Residue, levels = Cavity_Residues) 
+
+# 3 Count variants per residue
+Count_Cavity <- Mave_Cavity %>% 
+  group_by(Residue) %>% 
+  summarise( n = n(), .groups = "drop" ) %>% 
+  mutate( y = 0.45 ) 
+
+# 4 Create annotation strip
+Cavity_Annotation <- data.frame( 
+  Residue = factor( 
+    Cavity_Residues, 
+    levels = Cavity_Residues ) ) %>% 
+  mutate(Cavity_Group = case_when(
+    Residue %in% Cavity_Catalytic_Residues ~ "Catalytic",
+    Residue %in% Cavity_CavityLining_Residues ~ "Cavity lining",
+    TRUE ~ "Other" ), y = -1.43 )
+
+# 5 Catalytic Cavity Plot
+
+Cavity_Boxplot <- ggplot(
+  Mave_Cavity,
+  aes(
+    x = Residue,
+    y = MAVE_Score
+  )
+) +
+  
+  geom_boxplot( 
+    fill = "white", 
+    colour = "black", 
+    outlier.shape = NA, 
+    width = 0.6, 
+    linewidth = 0.1 ) +
+  
+  # Individual variants 
+  geom_quasirandom_interactive(
+    aes(
+      colour = Significant,
+      shape = Barcode_Group,
+      
+      tooltip = paste0(
+        "<b>Mutation:</b> ", Variant,
+        "<br><b>Flow-Seq Score:</b> ", round(MAVE_Score, 3),
+        "<br><b>p value:</b> ", signif(MAVE_Empirical_p_Value, 3),
+        "<br><b>Barcodes:</b> ", MAVE_Barcode_Count,
+        "<br><b>Cavity:</b> ", Cavity_Group
+      ),
+      
+      data_id = Variant
+    ),
+    width = 0.32,
+    size = 0.65,
+    alpha = 0.6,
+    stroke = 0.1
+  ) +
+  
+  geom_text(
+    data = Count_Cavity,
+    aes(
+      x = Residue,
+      y = y,
+      label = paste0("n=", n)
+    ),
+    inherit.aes = FALSE,
+    size = 1.5,
+    angle = 55,
+    hjust = 0.5
+  ) + 
+  # Cavity annotation strip
+  geom_tile(
+    data = Cavity_Annotation,
+    aes(
+      x = Residue,
+      y = y,
+      fill = Cavity_Group
+    ),
+    inherit.aes = FALSE,
+    width = 0.9,
+    height = 0.06
+  ) +
+  # Cavity group colours
+  scale_fill_manual(
+    name = "Catalytic Cavity Feature:",
+    values = c(
+      "Catalytic" = "#D95F02",
+      "Cavity lining" = "#1B9E77",
+      "Other" = "grey70"
+    )
+  ) +
+  
+  # STOP control median line
+  geom_hline(
+    yintercept = stop_median,
+    colour = "darkred",
+    linewidth = 1,
+    alpha = 0.15
+  )+
+  
+  # Neutral reference
+  geom_hline(
+    yintercept = 0,
+    colour = "darkgreen",
+    linewidth = 0.15,
+    linetype = "dashed",
+    alpha = 0.75
+  ) +
+  
+  scale_colour_manual(
+    values = c(
+      "TRUE" = "red",
+      "FALSE" = "black"
+    ),
+    guide = "none"
+  ) +
+  scale_shape_manual(
+    values = c(
+      "≥3 barcodes" = 16,
+      "<3 barcodes" = 1
+    ),
+    guide = "none"
+  ) +
+  labs(
+    x = "Catalytic Cavity Residue",
+    y = "Flow-Seq Score"
+  ) +
+  
+  coord_cartesian(ylim = c(-1.65, 0.5), clip = "off") +
+  
+  theme_bw() +
+  theme(
+    panel.background = element_rect(fill = "transparent", colour = NA),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    plot.background = element_rect(fill = "transparent", colour = NA),
+    
+    panel.grid.major.x = element_line(colour = "gray90", linewidth = 0.1),
+    panel.grid.major.y = element_line(colour = "gray90", linewidth = 0.1),
+    panel.grid.minor = element_blank(),
+    
+    axis.text.x = element_text(size = 7, angle = 55, hjust = 1),
+    axis.title.x = element_text(size = 7, face = "bold"),
+    axis.text.y = element_text(size = 7),
+    axis.title.y = element_text(size = 7, face = "bold"),
+    axis.ticks = element_line(colour = "black", linewidth = 0.1),
+    axis.ticks.length = unit(0.1, "cm"),
+    
+    legend.title = element_text(size = 6, face = "bold"),
+    legend.text = element_text(size = 6),
+    legend.key.width = unit(0.18, "cm"),
+    legend.key.height = unit(0.15, "cm"),
+    legend.spacing.x = unit(0.05, "cm"),
+    legend.spacing.y = unit(0.03, "cm"),
+    legend.position = "bottom",
+    legend.box.margin = margin(t = -5)
+     )
+
+print(Cavity_Boxplot)
+
+ggsave("Cavity_Boxplot.pdf", 
+              plot = Cavity_Boxplot,
+       device = cairo_pdf,
+       width = 80,
+       height = 70,
+       units = "mm")
+```
+
+# 4 Analysis of Sapc Interactor Residues 
+
+```{r Sacp Interactor analysis}
+# SAPC INTERACTORS + STRUCTURAL ELEMENT ANNOTATION
+# 1 SapC-interacting residues
+SapC_Closed_Only <- c("T408")
+SapC_Open_Only <- c(
+  "D354", "A359", "F386", "E388",
+  "L483", "D484"
+)
+SapC_Closed_and_Open <- c(
+  "F355", "L356", "A357", "P358",
+  "K360", "K385", "W387", "R392",
+  "D397", "Q401", "H404", "Y412",
+  "K480", "D482", "R502", "S503",
+  "S504", "Y526")
+
+# All SapC interactors
+SAPC_Residues <- unique(c(
+  SapC_Closed_Only,
+  SapC_Open_Only,
+  SapC_Closed_and_Open
+))
+
+
+# 2. Structural elements
+SapC_Loop1 <- c("D354", "F355", "L356", "A357", "P358")
+
+SapC_Loop1_Helix6_Junction <- c( "A359")
+
+SapC_Helix6 <- c( "K360")
+
+SapC_Loop2 <- c( "K385", "F386", "W387", "E388")
+
+SapC_Loop2_Helix7_Junction <- c("R392")
+
+SapC_Helix7 <- c("D397", "Q401", "H404", "T408")
+
+SapC_Helix7_Boundary <- c("Y412")
+
+SapC_DomainII <- c("K480", "D482", "L483", "D484",
+                   "R502", "S503", "S504", "Y526")
+
+
+# 3 SAPC INTERACTORS — STRUCTURAL CLASSIFICATION
+SapC_Structure <- data.frame(
+  Residue = c(
+    SapC_Loop1,
+    SapC_Loop1_Helix6_Junction,
+    SapC_Helix6,
+    SapC_Loop2,
+    SapC_Loop2_Helix7_Junction,
+    SapC_Helix7,
+    SapC_Helix7_Boundary,
+    SapC_DomainII
+  ),
+  
+  Structural_Element = c(
+    rep("Loop 1", length(SapC_Loop1)),
+    rep("Loop 1–Helix 6 junction", length(SapC_Loop1_Helix6_Junction)),
+    rep("Helix 6", length(SapC_Helix6)),
+    rep("Loop 2", length(SapC_Loop2)),
+    rep("Loop 2–Helix 7 junction", length(SapC_Loop2_Helix7_Junction)),
+    rep("Helix 7", length(SapC_Helix7)),
+    rep("Helix 7 boundary", length(SapC_Helix7_Boundary)),
+    rep("Domain II", length(SapC_DomainII))
+  )
+)
+
+
+
+# 4 Filter MAVE data for SapC Interactors
+Mave_SAPC <- Mave_Annotated %>%
+  filter(
+    Residue %in% SAPC_Residues,
+    !is.na(MAVE_Score)
+  ) %>%
+  mutate(
+    Significant = MAVE_Empirical_p_Value < 0.05
+  ) %>%
+  left_join(
+    SapC_Structure,
+    by = "Residue"
+  ) %>%
+  arrange(Position) %>%
+  mutate(
+    Residue = reorder(Residue, Position)
+  )
+
+
+# 5 Annotation data for structural strip
+SAPC_Annotation <- SapC_Structure %>%
+  mutate(
+    Residue = factor(
+      Residue,
+      levels = SAPC_Residues
+    ),
+    y = -1.43
+  )
+
+
+
+# 6 Variant counts
+Count_SAPC <- Mave_SAPC %>%
+  group_by(Residue) %>%
+  summarise(
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Residue = factor(
+      Residue,
+      levels = SAPC_Residues
+    ),
+    y = 0.4
+  )
+
+# 7 SapC Plot
+SAPC_Boxplot <- ggplot(
+  Mave_SAPC,
+  aes(
+    x = Residue,
+    y = MAVE_Score
+  )
+) +
+  
+# Boxplots
+geom_boxplot(
+  fill = "white",
+  colour = "black",
+  outlier.shape = NA,
+  width = 0.6,
+  linewidth = 0.1
+) +
+  
+# Individual variants
+geom_quasirandom_interactive(
+  aes(
+    colour = Significant,
+    shape = Barcode_Group,
+    
+    tooltip = paste0(
+      "<b>Mutation:</b> ", Variant,
+      "<br><b>Flow-Seq Score:</b> ",
+      round(MAVE_Score, 3),
+      "<br><b>p value:</b> ",
+      signif(MAVE_Empirical_p_Value, 3),
+      "<br><b>Barcodes:</b> ",
+      MAVE_Barcode_Count,
+      "<br><b>Structural location:</b> ",
+      Structural_Element
+    ),
+    
+    data_id = Variant
+  ),
+  width = 0.32,
+  size = 0.65,
+  alpha = 0.6,
+  stroke = 0.1
+) +
+  
+# Variant count
+geom_text(
+  data = Count_SAPC,
+  aes(
+    x = Residue,
+    y = y,
+    label = paste0("n=", n)
+  ),
+  inherit.aes = FALSE,
+  size = 1.5,
+  angle = 55,
+  hjust = 0.5
+) +
+  
+# Structural annotation strip
+geom_tile(
+  data = SAPC_Annotation,
+  aes(
+    x = Residue,
+    y = y,
+    fill = Structural_Element
+  ),
+  inherit.aes = FALSE,
+  width = 0.9,
+  height = 0.07
+) +
+  
+# Structural colours
+scale_fill_manual(
+  name = "SapC\nInterface:",
+  
+  breaks = c(
+    "Loop 1",
+    "Loop 1–Helix 6 junction",
+    "Helix 6",
+    "Loop 2",
+    "Loop 2–Helix 7 junction",
+    "Helix 7",
+    "Helix 7 boundary",
+    "Domain II"
+  ),
+  labels = c(
+    "Loop 1",
+    "Loop 1–Helix 6\njunction",
+    "Helix 6",
+    "Loop 2",
+    "Loop 2–Helix 7\njunction",
+    "Helix 7",
+    "Helix 7\nboundary",
+    "Domain II"
+  ),
+  values = c(
+    "Loop 1" = "#D95F02",
+    "Loop 1–Helix 6 junction" =  "#E6AB02",
+    "Helix 6" =  "#A6761D",
+    "Loop 2" =  "#1B9E77",
+    "Loop 2–Helix 7 junction" =  "#66A61E",
+    "Helix 7" =  "#7570B3",
+    "Helix 7 boundary" = "#6A3D9A",
+    "Domain II" = "#E7298A"
+  )) +
+  
+  scale_colour_manual(
+    values = c(
+      "TRUE" = "red",
+      "FALSE" = "black"
+    ),
+    guide = "none"
+  ) +
+  
+# Barcode shape
+scale_shape_manual(
+  values = c(
+    "≥3 barcodes" = 16,
+    "<3 barcodes" = 1
+  ),
+  guide = "none"
+) +
+  
+  # STOP control median line
+  geom_hline(
+    yintercept = stop_median,
+    colour = "darkred",
+    linewidth = 1,
+    alpha = 0.15
+  )+
+  
+# Neutral reference
+geom_hline(
+  yintercept = 0,
+  colour = "darkgreen",
+  linewidth = 0.15,
+  linetype = "dashed",
+  alpha = 0.75
+) +  
+  
+# Labels
+labs(
+  x = "SapC-Interface Residue",
+  y = "Flow-Seq Score"
+) +
+  
+
+# Coordinate limits
+  coord_cartesian(ylim = c(-1.65, 0.5), clip = "off") +
+  
+# Theme
+theme_bw() +
+  
+  theme(
+    panel.background = element_rect(fill = "transparent", colour = NA),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1 ),
+    plot.background = element_rect(fill = "transparent", colour = NA),
+    
+    panel.grid.major.x = element_line(colour = "gray90",linewidth = 0.1),
+    panel.grid.major.y = element_line(colour = "gray90", linewidth = 0.1),
+    panel.grid.minor = element_blank(),
+    
+    axis.text.x = element_text(size = 7,angle = 55,hjust = 1),
+    axis.title.x = element_text(size = 7, face = "bold"),
+    axis.text.y = element_text(size = 7),
+    axis.title.y = element_text(size = 7, face = "bold"),
+    axis.ticks = element_line(colour = "black", linewidth = 0.1),
+    axis.ticks.length = unit(0.1, "cm"),
+    
+    legend.title = element_text(size = 6, face = "bold"),
+    legend.text = element_text(size = 6),
+    legend.key.width = unit(0.18,"cm"),
+    legend.key.height = unit(0.15, "cm"),
+    legend.spacing.x = unit(0.025, "cm"),
+    legend.spacing.y = unit(0.03,"cm"),
+    legend.position = "bottom",
+    legend.box.margin = margin(t = -5))
+
+print(SAPC_Boxplot)
+
+ggsave("SAPC_Boxplot.pdf", 
+              plot = SAPC_Boxplot,
+       device = cairo_pdf,
+       width = 90,
+       height = 65,
+       units = "mm")
+```
+
+
+# Analysis of LIMP-2 interface residues
+
+```{r LIMP2 interface analysis}
+
+# 1 LIMP2 binding residues
+LIMP2_Binding_Residues <- c("L130", "N131", "L133", 
+                            "A134", "L135", "S136", 
+                            "I169", "R170", "E190", 
+                            "E191", "K194", "L195", 
+                            "N425", "E427", "P430", "R434", 
+                            "D438", "S439", "P440", "I441", "I442", "V443", "D444",
+                            "I445", "T446",
+                            "K447",
+                            "D448")
+
+LIMP2_Interface_Hydrophobic_Core <- c("L130", "L133", 
+                                      "A134", "L135", 
+                                      "I169", "L195", 
+                                      "P430",  "P440", 
+                                      "I441", "I442", 
+                                      "V443", "I445")
+
+LIMP2_Interface_PolarChargedRim <- c("N131", "S136", "R170", "E190", 
+                                     "E191", "K194", "N425", "E427", "R434",
+                                     "D438", "S439", "D444", "K447",
+                                     "T446", "D448")
+
+LIMP2_Interface_HydrogenBond <- c("N131", "K194", "R434")
+LIMP2_Interface_SaltBridge <- c("E190", "D448")
+
+# 2 Filter for LIMP2 residues and define the structural category for each LIMP-2 binding residue
+Mave_LIMP2 <- Mave_Annotated %>%
+  filter(
+    Residue %in% LIMP2_Binding_Residues,
+    !is.na(MAVE_Score)
+  ) %>%
+  mutate(
+    Significant = MAVE_Empirical_p_Value < 0.05,
+    Interface_Group = case_when(
+      Residue %in% LIMP2_Interface_SaltBridge ~ "Salt bridge",
+      Residue %in% LIMP2_Interface_HydrogenBond ~ "Hydrogen bond",
+      Residue %in% LIMP2_Interface_Hydrophobic_Core ~ "Hydrophobic core",
+      Residue %in% LIMP2_Interface_PolarChargedRim ~ "Polar/charged rim",
+      TRUE ~ "Other"
+    )
+  )
+
+# Preserve residue order
+Mave_LIMP2$Residue <- factor(
+  Mave_LIMP2$Residue,
+  levels = LIMP2_Binding_Residues
+)
+
+# 3 Count variants per residue
+Count_LIMP2 <- Mave_LIMP2 %>%
+  group_by(Residue) %>%
+  summarise(
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    y = 0.45
+  )
+
+# 4 Create annotation strip
+LIMP2_Annotation <- data.frame(
+  Residue = factor(
+    LIMP2_Binding_Residues,
+    levels = LIMP2_Binding_Residues
+  )
+) %>%
+  mutate(
+    Interface_Group = case_when(
+      Residue %in% LIMP2_Interface_SaltBridge ~ "Salt bridge",
+      Residue %in% LIMP2_Interface_HydrogenBond ~ "Hydrogen bond",
+      Residue %in% LIMP2_Interface_Hydrophobic_Core ~ "Hydrophobic core",
+      Residue %in% LIMP2_Interface_PolarChargedRim ~ "Polar/charged rim",
+      TRUE ~ "Other"
+    ),
+    y = -1.43
+  )
+
+# 4 LIMP2 plot
+LIMP2_Boxplot <- ggplot(
+  Mave_LIMP2,
+  aes( x = Residue, y = MAVE_Score)) +
+  
+  # Boxplots
+  geom_boxplot(
+    fill = "white",
+    colour = "black",
+    outlier.shape = NA,
+    width = 0.6,
+    linewidth = 0.1
+  ) +
+  
+  # Individual variants
+  geom_quasirandom_interactive(
+    aes(
+      colour = Significant,
+      shape = Barcode_Group,
+      tooltip = paste0(
+        "<b>Mutation:</b> ", Variant,
+        "<br><b>Flow-Seq Score:</b> ", round(MAVE_Score, 3),
+        "<br><b>p value:</b> ", signif(MAVE_Empirical_p_Value, 3),
+        "<br><b>Barcodes:</b> ", MAVE_Barcode_Count,
+        "<br><b>Interface:</b> ", Interface_Group
+      ),
+      data_id = Variant
+    ),
+    width = 0.32,
+    size = 0.65,
+    alpha = 0.6,
+    stroke = 0.1
+  ) +
+  
+  # Sample size
+  geom_text(
+    data = Count_LIMP2,
+    aes( x = Residue, 
+         y = y,
+         label = paste0("n=", n)
+         ),
+    inherit.aes = FALSE,
+    size = 1.5,
+    angle = 55,
+    hjust = 0.5
+  ) +
+  
+  # Interface annotation strip
+  geom_tile(
+    data = LIMP2_Annotation,
+    aes(
+      x = Residue,
+      y = y,
+      fill = Interface_Group
+    ),
+    inherit.aes = FALSE,
+    width = 0.9,
+    height = 0.06
+  ) +
+  # STOP control median line
+  geom_hline(
+    yintercept = stop_median,
+    colour = "darkred",
+    linewidth = 1,
+    alpha = 0.15
+  )+
+  
+  # Neutral reference
+  geom_hline(
+    yintercept = 0,
+    colour = "darkgreen",
+    linewidth = 0.15,
+    linetype = "dashed",
+    alpha = 0.75
+  ) +
+  
+  scale_colour_manual(
+    values = c(
+      "TRUE" = "red",
+      "FALSE" = "black"
+    ),
+    guide = "none"
+  ) +
+  
+  # Barcode shape
+  scale_shape_manual(
+    values = c(
+      "≥3 barcodes" = 16,
+      "<3 barcodes" = 1
+    ),
+    guide = "none"
+  ) +
+  
+  # Interface group colours
+  scale_fill_manual(
+    name = "LIMP-2 Interface:",
+    breaks = c(
+      "Hydrophobic core",
+      "Polar/charged rim",
+      "Hydrogen bond",
+      "Salt bridge"
+    ),
+    values = c(
+      "Hydrophobic core" = "#D95F02",
+      "Polar/charged rim" = "#1B9E77",
+      "Hydrogen bond" = "#7570B3",
+      "Salt bridge" = "#E7298A"
+    ),
+    guide = guide_legend( nrow = 2, byrow = TRUE ) ) +
+  
+  labs(
+    x = "LIMP-2 Interface Residue",
+    y = "Flow-Seq Score",
+  ) +
+  
+  coord_cartesian(ylim = c(-1.65, 0.5), clip = "off") +
+  
+  theme_bw() +
+  
+  theme(
+    panel.background = element_rect( fill = "transparent",colour = NA),
+    panel.border = element_rect(colour = "black", fill = NA,linewidth = 0.1),
+    plot.background = element_rect( fill = "transparent", colour = NA ),
+    panel.grid.major.x = element_line( colour = "gray90", linewidth = 0.1 ),
+    panel.grid.major.y = element_line(colour = "gray90", linewidth = 0.1),
+    panel.grid.minor = element_blank(),
+    
+    axis.text.x = element_text( size = 7,  angle = 55,  hjust = 1 ),
+    axis.title.x = element_text(size = 7, face = "bold"),
+    axis.text.y = element_text( size = 7 ),
+    axis.title.y = element_text( size = 7, face = "bold"),
+    axis.ticks = element_line( colour = "black", linewidth = 0.1 ),
+    axis.ticks.length = unit(  0.1,  "cm" ),
+    
+    plot.title = element_text(size = 7, face = "bold"),
+    
+    legend.title = element_text(size = 6, face = "bold"),
+    legend.text = element_text(size = 6),
+    legend.key.width = unit(0.18, "cm"),
+    legend.key.height = unit(0.15, "cm"),
+    legend.spacing.x = unit(0.05, "cm"),
+    legend.spacing.y = unit(0.03, "cm"),
+    legend.position = "bottom",
+    legend.box.margin = margin(t = -5)
+    )
+
+print(LIMP2_Boxplot)
+
+ggsave("LIMP2_Boxplot.pdf", 
+       plot = LIMP2_Boxplot,
+       device = cairo_pdf,
+       width = 80,
+       height = 70,
+       units = "mm")
+```
+
+
+# Comparison of Regions: Catalytic Cavity / SapC Interface / LIMP-2 Interface 
+
+```{r region comparison}
+
+# 1 Annotate residues by structural group
+Mave_Structure <- Mave_Annotated %>%
+  filter(!is.na(MAVE_Score)) %>%
+  mutate(
+    Structure = case_when(
+      Residue %in% Cavity_Residues ~ "Catalytic Cavity",
+      Residue %in% SAPC_Residues ~ "SapC Interface",
+      Residue %in% LIMP2_Binding_Residues ~ "LIMP-2 Interface",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(Structure))
+
+
+# 2 Filter
+Mave_Structure_Median <- Mave_Structure %>%
+  filter(Barcode_Group %in% "≥3 barcodes") %>%
+  group_by(Structure, Residue) %>%
+  summarise(
+    Median_MAVE = median(MAVE_Score, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
+
+Mave_Structure_Median$Structure <- factor(
+  Mave_Structure_Median$Structure,
+  levels = c("Catalytic Cavity", "LIMP-2 Interface", "SapC Interface"))
+
+# 3 Count residues
+Count_Structure <- Mave_Structure_Median %>%
+  group_by(Structure) %>%
+  summarise(
+    n = n()
+  ) %>%
+  mutate(
+    y = 0.27
+  )
+
+# Plotting
+Structure_Boxplot <- ggplot(
+  Mave_Structure_Median,
+  aes(
+    x = Structure,
+    y = Median_MAVE
+  )
+) +
+
+  geom_boxplot(
+    fill = "white",
+    colour = "black",
+    width = 0.6,
+    outlier.shape = NA,
+    linewidth = 0.15
+  ) + 
+  
+
+  geom_quasirandom_interactive(
+    aes(
+      tooltip = paste0(
+        "<br><b>Residue:</b> ", Residue,
+        "<br><b>Median Flow-Seq Score:</b> ", round(Median_MAVE, 3)
+      ),
+      data_id = Residue
+    ),
+    width = 0.32,
+    size = 0.65,
+    alpha = 0.6,
+    stroke = 0.1
+  ) +
+  
+  geom_text(
+    data = Count_Structure,
+    aes(
+      x = Structure,
+      y = y,
+      label = paste0("N=", n)
+    ),
+    inherit.aes = FALSE,
+    size = 2
+  ) +
+  # STOP control median line
+  geom_hline(
+    yintercept = stop_median,
+    colour = "darkred",
+    linewidth = 1,
+    alpha = 0.15
+  )+
+  
+  # Neutral reference
+  geom_hline(
+    yintercept = 0,
+    colour = "darkgreen",
+    linewidth = 0.15,
+    linetype = "dashed",
+    alpha = 0.75
+  )+
+  
+  labs(
+    x = NULL,
+    y = "Median Flow-Seq Score\n per residue"
+  ) +
+  
+  scale_x_discrete(
+    labels = c(
+      "Catalytic Cavity" = "Catalytic\nCavity",
+      "SapC Interface" = "SapC\nInterface",
+      "LIMP-2 Interface" = "LIMP-2\nInterface"
+    )
+  )+
+  
+
+  scale_y_continuous(
+    limits = c(-1.2, 0.35),
+    breaks = seq(-1, 0.25, by = 0.25),
+    expand = c(0, 0)
+  )+
+  
+  theme_bw() +
+  theme(
+    panel.background = element_rect(fill = "transparent", colour = NA),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.1),
+    plot.background = element_rect(fill = "transparent", colour = NA),
+    
+    panel.grid.major.x = element_line(colour = "gray90", linewidth = 0.1),
+    panel.grid.major.y = element_line(colour = "gray90", linewidth = 0.1),
+    panel.grid.minor = element_blank(),
+    
+    axis.text.x = element_text(size = 7),
+    axis.title.x = element_text(size = 7, face = "bold"),
+    axis.text.y = element_text(size = 7),
+    axis.title.y = element_text(size = 7, face = "bold"),
+    
+    axis.ticks = element_line(colour = "black", linewidth = 0.1),
+    axis.ticks.length = unit(0.1, "cm")
+  )
+
+print(Structure_Boxplot)
+
+ggsave("Cavity_SapC_LIMP2_Comp_Boxplot.pdf", 
+              plot = Structure_Boxplot,
+              device = cairo_pdf,
+              width = 80,
+              height = 65,
+              units = "mm")
+```
+
+# Generate Interactive Plots
+```{r Interactive plots}
+
+Combined_Interface_Plots <-
+  
+  (DisulfideBridge_Cys_Plot| Cavity_Boxplot) /
+  
+  (SAPC_Boxplot | LIMP2_Boxplot) /
+  
+  (NLinked_Glycosylation_Plot | Structure_Boxplot)
+
+Combined_Interface_Plots
+
+ggsave("Combined_plot.pdf", 
+       plot = Combined_Interface_Plots,
+       device = cairo_pdf,
+       width = 180,
+       height = 172,
+       units = "mm")
+
+
+Combined_Interface_Interactive <- girafe(
+  ggobj = Combined_Interface_Plots,
+  width_svg = 8,
+  height_svg = 14
+)
+
+Combined_Interface_Interactive
+
+```
+
+
+
+
+
+
+
+
+
+
+
+

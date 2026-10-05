@@ -1,0 +1,174 @@
+---
+title: "Quantification of LysoFix Time-course"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Overview
+
+This analysis calculates the staining index for the LysoFix time-course.
+
+Analysis included shown in figure 1B
+
+## Required packages
+```{r packages}
+library(readxl)
+library(writexl)
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(ggplot2)
+```
+
+## Load raw data
+```{r load-data}
+raw_data <- readxl::read_excel(
+  "LysoFix Timecourse Raw Quantification.xlsx")
+```
+
+# Clean column names and prepare data
+```{r tidy-headers and prep data}
+names(raw_data)[-1] <- sub(
+  ".*\\|\\s*(Median|Robust SD)\\s*\\(PE-A\\).*",
+  "\\1",
+  names(raw_data)[-1]
+)
+
+names(raw_data)[-1] <- gsub(" ", "_", names(raw_data)[-1])
+
+data <- raw_data %>%
+  mutate(
+    Sample = sub("^[^_]*_", "", File_Name),
+    Sample = gsub("\\.fcs$", "", Sample),
+    Cell_Line = sub("_.*", "", Sample),
+    Condition = sub("^[^_]*_", "", Sample)
+  ) %>%
+  arrange(Cell_Line) %>%
+  select(File_Name, Sample, Cell_Line, Condition, Median, Robust_SD)
+```
+  
+## Calculate staining index
+The staining index is calculated relative to the GBA1 KO.
+
+```{r calculate-si}
+KO_Median_SD <- data %>%
+  filter(Cell_Line == "GBA KO") %>%
+  select(
+    Condition,
+    KO_Median = Median,
+    KO_RobustSD = Robust_SD
+  )
+
+SI_Calc <- data %>%
+  left_join(KO_Median_SD, by = "Condition") %>%
+  mutate(
+    Median_vs_GBAKO = Median - KO_Median,
+    SI = Median_vs_GBAKO / (2 * KO_RobustSD)
+  )
+
+LysoFix_dataframe <- SI_Calc %>%
+  separate(
+    Condition,
+    into = c("LysoFix_Conc", "LysoFix_Time"),
+    sep = "_",
+    remove = FALSE
+  ) %>%
+  mutate(
+    LysoFix_Conc = gsub("LysoFix ", "", LysoFix_Conc),
+    LysoFix_Time = gsub("hr", "", LysoFix_Time),
+    LysoFix_Time = gsub("30mins", "0.5", LysoFix_Time),
+    Cell_Line = factor(
+      Cell_Line,
+      levels = c("GBA KO", "BxB WT", "BxB N409S")
+    ),
+    LysoFix_Time = factor(
+      LysoFix_Time,
+      levels = c("0.5", "1", "2", "3", "4")
+    )
+  )
+```
+
+## Plot staining index
+```{r plot}
+CellLineColours <- c(
+  "GBA KO" = "skyblue",
+  "BxB WT" = "orange",
+  "BxB N409S" = "green"
+)
+
+SI_15uMLysoFix <- LysoFix_dataframe %>%
+  filter(str_detect(Condition, "LysoFix")) %>%
+  ggplot(
+    aes(
+      x = LysoFix_Time,
+      y = SI,
+      group = Cell_Line,
+      color = Cell_Line
+    )
+  ) +
+  geom_line(linewidth = 0.5) +
+  geom_point(size = 1, position = "identity", alpha = 1) +
+  labs(
+    x = "Time (hours)",
+    y = "Staining Index"
+  ) +
+  scale_color_manual(
+    values = CellLineColours,
+    guide = "none"
+  ) +
+  theme_bw() +
+  theme(
+    panel.background = element_rect(
+      fill = "transparent",
+      colour = NA
+    ),
+    panel.border = element_rect(
+      color = "black",
+      fill = NA,
+      linewidth = 0.1
+    ),
+    plot.background = element_rect(
+      fill = "transparent",
+      colour = NA
+    ),
+    legend.background = element_rect(
+      fill = "transparent",
+      colour = NA
+    ),
+    panel.grid.major.x = element_line(
+      color = "gray90",
+      linewidth = 0.1
+    ),
+    panel.grid.major.y = element_line(
+      color = "gray90",
+      linewidth = 0.1
+    ),
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 6),
+    axis.title.x = element_text(size = 6, face = "bold"),
+    axis.text.y = element_text(size = 6),
+    axis.title.y = element_text(size = 6, face = "bold"),
+    axis.ticks = element_line(
+      colour = "black",
+      linewidth = 0.1
+    ),
+    axis.ticks.length = unit(0.1, "cm"),
+    axis.line = element_blank()
+  )
+
+SI_15uMLysoFix
+
+ggsave(
+  "LysoFix Timecourse Staining Index.pdf",
+  plot = SI_15uMLysoFix,
+  device = cairo_pdf,
+  width = 37,
+  height = 32,
+  units = "mm"
+)
+```
+

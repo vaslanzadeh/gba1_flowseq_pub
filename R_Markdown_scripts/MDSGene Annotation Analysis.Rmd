@@ -1,0 +1,992 @@
+---
+title: "Plotting MAVE Flow-Seq Scores for MDSGene Annotated Variants"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Overview
+This analysis investigates the MAVE flow-seq scores for GBA1 variants annotated by MDSGene
+
+Analysis included are shown in figure 3, supplementary figure 9 and 10
+
+```{r packages}
+
+library(dplyr)
+library(readxl)
+library(writexl)
+library(ggplot2)
+library(ggrepel)
+library(ggalluvial)
+library(patchwork)
+library(ggbeeswarm)
+library(rstatix)
+```
+
+# Load raw data
+
+```{r load-data}
+MasterFile_Input <- readxl::read_excel("Supplementary Table 2_MAVE Master File.xlsx")
+```
+
+
+# Stop Codon Score Calculation
+Calculate the average stop codon score of GBA1 variants from the MAVE flow-seq dataset
+
+```{r Stop-codon Calculation}
+GBAAnalysisStopCodon <- MasterFile_Input %>%
+  mutate(Position = as.numeric(Position)) %>%
+  filter(
+    WT_AA != Mutant_AA,
+    Mutant_AA == "*",
+    !is.na(MAVE_Score),
+    Position > 20
+  )
+
+stop_median <- median(
+  GBAAnalysisStopCodon$MAVE_Score,
+  na.rm = TRUE
+)
+
+```
+
+# Prepare MDSGene data for plotting
+Filter data for MDSGene missense and nonsense variants
+Collect MDSGene annotated variants
+Add MAVE barcode information
+
+```{r Prepare data}
+MDS_MissenseNonsense_Subset <- MasterFile_Input %>%
+  filter(!is.na(MDSGene_Genetic_Classification)) %>%
+  filter(!is.na(MAVE_Score)) %>%
+  mutate(MDSGene_Genetic_Classification = factor(MDSGene_Genetic_Classification, 
+                                                 levels = c("Pathogenic", 
+                                                            "Likely Pathogenic",
+                                                            "Benign", 
+                                                            "Likely Benign", 
+                                                            "VUS"))) %>%
+  mutate(MDSGene_Clinical_Severity = factor(MDSGene_Clinical_Severity, levels = c("Severe", 
+                                                                                  "Severe (Null)",
+                                                                                  "Mild", 
+                                                                                  "PD Risk Variant", 
+                                                                                  "Unknown", 
+                                                                                  "Not Reported"))) 
+  
+
+MDS_MissenseNonsense_Subset <- MDS_MissenseNonsense_Subset %>%
+  mutate(
+    Barcode_Group = ifelse(
+      MAVE_Barcode_Count >= 3,
+      "≥3 barcodes",
+      "<3 barcodes"
+    )
+  )
+```
+
+#Generate Summary Files of MAVE Flow-seq Scores for MDSGene Annotations: Genetic Classification and Clinical Severity
+
+```{r data-processing}
+MDSVariantSummary_GeneticClassification <- MDS_MissenseNonsense_Subset %>%
+  filter(!is.na(MAVE_Score)) %>%
+  group_by(MDSGene_Genetic_Classification) %>%
+  summarize(
+    n = n(),  
+    mean_score = mean(MAVE_Score, na.rm = TRUE),
+    min_score = min(MAVE_Score, na.rm = TRUE),
+    max_score = max(MAVE_Score, na.rm = TRUE),
+    sd_score = sd(MAVE_Score, na.rm = TRUE),
+    
+    median = quantile(MAVE_Score, 0.50, na.rm = TRUE),
+    q1 = quantile(MAVE_Score, 0.25, na.rm = TRUE),
+    q3 = quantile(MAVE_Score, 0.75, na.rm = TRUE),
+    iqr = IQR(MAVE_Score, na.rm = TRUE),
+    
+    Significant = sum(MAVE_Empirical_p_Value <= 0.05 & MAVE_Barcode_Count >= 3, na.rm = TRUE),
+    Percent_Significant = ((Significant/ n ) * 100),
+    .groups = "drop"
+  )
+
+MDSVariantSummary_ClinicalSeverity <- MDS_MissenseNonsense_Subset %>%
+  filter(!is.na(MAVE_Score)) %>%
+  group_by(MDSGene_Clinical_Severity) %>%
+  summarize(
+    n = n(), 
+    mean_score = mean(MAVE_Score, na.rm = TRUE),
+    min_score = min(MAVE_Score, na.rm = TRUE),
+    max_score = max(MAVE_Score, na.rm = TRUE),
+    sd_score = sd(MAVE_Score, na.rm = TRUE),
+    
+    median = quantile(MAVE_Score, 0.50, na.rm = TRUE),
+    q1 = quantile(MAVE_Score, 0.25, na.rm = TRUE),
+    q3 = quantile(MAVE_Score, 0.75, na.rm = TRUE),
+    iqr = IQR(MAVE_Score, na.rm = TRUE),
+    
+    Significant = sum(MAVE_Empirical_p_Value <= 0.05 & MAVE_Barcode_Count >= 3, na.rm = TRUE),
+    Percent_Significant = ((Significant/ n ) * 100),
+    .groups = "drop"
+  )
+
+```
+
+# Plot MAVE Flow-Seq Scores for MDSGene Annotations: Genetic Classification and Clinical Severity 
+```{r plotting- MDSGene genetic classification and clinical severity}
+MDS_MissenseNonsense_Subset <- MDS_MissenseNonsense_Subset %>%
+  mutate(
+    MDS_n_bin = cut(
+      MDS_n,
+      breaks = c(0, 10, 25, 100, 500, 10000, Inf),
+      labels = c(
+        "1–10",
+        "11–25",
+        "26–100",
+        "101–500",
+        "501–10000",
+        "10000+"
+      ),
+      right = TRUE,
+      include.lowest = TRUE
+    )
+  )
+
+
+Annotated <- c("R502C", "G241R", "D448H", "L483P", "V414L", "V433L", "R159W", "S310G", 
+               "H294Q", "R170S", "R329W", "V437L", "R324C", 
+               "V499L", "N409S", "W417G", "V437I",  
+               "E365K", "E427K", 
+               "A495P", "N231K", "T408M", "R83C", "V391L", "P358L", "R324H", 
+               "F285S", "Y352H", "D166E",
+               "L25F") 
+
+
+MDS_plot_df <- MDS_MissenseNonsense_Subset %>%
+  mutate(
+    Annotated = Variant %in% Annotated,
+    
+    nudge_x = case_when(
+      #Pathogenic
+      Variant == "H294Q" ~ 0.2,
+      Variant == "R170S" ~ -0.25,
+      Variant == "R502C" ~ -0.1,
+      
+      Variant == "D448H" ~ -0.4,
+      Variant == "V414L" ~ -0.25,
+      
+      Variant == "L483P" ~  0.35,
+      Variant == "G241R" ~  0.2,
+      
+      Variant == "V433L" ~ -0.2,
+      Variant == "R159W" ~  -0.15,
+      Variant == "V437L" ~ -0.05,
+      Variant == "R324C" ~ 0.05,
+      
+      #Likely Pathogenic
+      Variant == "S310G" ~ -0.25,
+      Variant == "N409S" ~  0.35,
+      Variant == "W417G" ~ -0.2,
+      Variant == "V437I" ~ 0.1,
+      Variant == "V499L" ~ 0.15,
+      
+      #VUS
+      Variant == "T408M" ~ -0.35,
+      Variant == "N231K" ~ -0.2,
+      
+      Variant == "R83C" ~ -0.25,
+      Variant == "E427K" ~ 0.25,
+      Variant == "A495P" ~ -0.1,
+      
+      Variant == "V391L" ~ -0.35,
+      Variant == "D166E" ~ -0.1,
+      Variant == "P358L" ~ 0.1,
+      Variant == "R324H" ~  0.05,
+      Variant == "Y352H" ~ -0.1,
+      Variant == "F285S" ~ -0.05,
+      
+      Variant == "L25F" ~ 0.1,
+      TRUE ~ 0
+    ),
+    
+    x_nudged_genclass =
+      as.numeric(MDSGene_Genetic_Classification) + nudge_x,
+    x_nudged_clinsev = as.numeric(factor(
+      MDSGene_Clinical_Severity,
+      levels = c(
+        "Severe",
+        "Severe (Null)",
+        "Mild",
+        "PD Risk Variant",
+        "Unknown",
+        "Not Reported"
+      )
+    )) + nudge_x
+    
+  )
+
+
+
+n_labels <- MDS_plot_df %>%
+  group_by(MDSGene_Genetic_Classification) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(y_top = 0.3)
+
+
+#Genetic classificaiton plotting
+genclass_cols <- c(
+  "Pathogenic" = "#C62828",
+  "Likely Pathogenic" = "#F9A825",
+  "Benign" = "#1565C0",
+  "Likely Benign" = "#4FC3F7",
+  "VUS" = "#7E57C2" 
+)
+
+max(MDS_plot_df$MAVE_Score)
+
+
+MDS_GenClass_plot <- ggplot() +
+  
+  # --- Boxplot
+  geom_boxplot(
+    data = MDS_plot_df,
+    aes(x = MDSGene_Genetic_Classification, y = MAVE_Score),
+    outlier.shape = NA,
+    fill = NA,
+    color = "black",
+    size = 0.1
+  ) +
+  
+  # --- Non-annotated variants
+  geom_quasirandom(
+    data = MDS_plot_df %>% filter(!Annotated),
+    aes(
+      x = MDSGene_Genetic_Classification,
+      y = MAVE_Score,
+      colour = MDSGene_Genetic_Classification,
+      shape = Barcode_Group
+    ),
+    width = 0.32,
+    size = 0.65,
+    alpha = 0.6,
+    stroke = 0.1
+  ) +
+  
+  # --- Annotated variants
+  geom_point(
+    data = MDS_plot_df %>% filter(Annotated),
+    aes(
+      x = x_nudged_genclass,
+      y = MAVE_Score,
+      colour = MDSGene_Genetic_Classification,
+      fill = MDSGene_Genetic_Classification,
+      size = MDS_n_bin,
+      shape = Barcode_Group
+    ),
+    alpha = 0.6,
+    stroke = 0.1
+  ) +
+  
+  # --- Annotation lines
+  geom_segment(
+    data = MDS_plot_df %>% filter(Annotated),
+    aes(
+      x = x_nudged_genclass,
+      xend = x_nudged_genclass + 0.15,
+      y = MAVE_Score,
+      yend = MAVE_Score + 0.08
+    ),
+    linewidth = 0.1,
+    colour = "black"
+  ) +
+  
+  # --- Variant labels
+  geom_text(
+    data = MDS_plot_df %>% filter(Annotated),
+    aes(
+      x = x_nudged_genclass + 0.15,
+      y = MAVE_Score + 0.08,
+      label = Variant
+    ),
+    hjust = 0,
+    size = 2
+  ) +
+  
+  # --- n labels
+  geom_text(
+    data = n_labels,
+    aes(
+      x = MDSGene_Genetic_Classification,
+      y = y_top,
+      label = paste0("n = ", n)
+    ),
+    inherit.aes = FALSE,
+    size = 2
+  ) +
+  
+  # --- Point size legend
+  scale_size_manual(
+    name = "Case Count",
+    values = c(
+      "1–10" = 0.75,
+      "11–25" = 1,
+      "26–100" = 2,
+      "101–500" = 3,
+      "501–10000" = 4,
+      "10000+" = 5
+    )
+  ) +
+  
+  scale_shape_manual(
+    values = c(
+      "≥3 barcodes" = 16,
+      "<3 barcodes" = 1
+    ),
+    guide = "none"
+  ) +
+  
+  # STOP control median line
+  geom_hline(
+    yintercept = stop_median,
+    colour = "darkred",
+    linewidth = 1,
+    alpha = 0.25
+  )+
+  
+  geom_hline(
+    yintercept = 0,
+    color = "darkgreen",
+    alpha = 0.75,
+    linewidth = 0.15,
+    linetype = "dashed"
+  ) +
+  
+  # --- Genetic classification colours
+  scale_color_manual(values = genclass_cols, guide = "none") +
+  scale_fill_manual(values = genclass_cols, guide = "none") +
+  
+  scale_y_continuous(
+    limits = c(-1.25, 0.3),
+    breaks = seq(-1.25, 0.25, by = 0.25)
+  ) +
+  scale_x_discrete(
+    labels = c(
+      "Pathogenic" = "Pathogenic",
+      "Likely Pathogenic" = "Likely\nPathogenic",
+      "Benign" = "Benign",
+      "Likely Benign" = "Likely\nBenign",
+      "VUS" = "VUS"
+    )
+  ) +
+  
+  theme_bw() +
+  theme(
+    panel.background = element_rect(fill = "transparent", colour = NA),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.1),
+    plot.background = element_rect(fill = "transparent", colour = NA),
+    
+    legend.background = element_rect(fill = "transparent", colour = NA),
+    
+    panel.grid.major.x = element_line(color = "gray90",linewidth = 0.1),
+    panel.grid.major.y = element_line(color = "gray90",linewidth = 0.1),
+    panel.grid.minor = element_blank(),
+    
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.box = "horizontal",
+    
+    legend.title = element_text(size = 6,face = "bold"),
+    legend.text = element_text(size = 6),
+    legend.spacing.x = unit(0.05, "cm"),
+    legend.spacing.y = unit(0.02, "cm"),
+    legend.key.width = unit(0.25, "cm"),
+    legend.key.height = unit(0.25, "cm"),
+    legend.margin = margin(0,0,0,0),
+    legend.box.margin = margin(0,0,0,0),
+    
+    axis.title.x = element_text( size = 7, face = "bold"),
+    axis.text.x = element_text( size = 7),
+    axis.text.y = element_text( size = 7),
+    axis.title.y = element_text( size = 7, face = "bold" ),
+    axis.ticks = element_line( colour = "black", linewidth = 0.1 ),
+    axis.ticks.length = unit(0.1, "cm")) +
+  
+  labs(
+    x = "Genetic Classification",
+    y = "Flow-Seq Score"
+  ) +
+  
+  guides(
+    size = guide_legend(
+      nrow = 2,
+      byrow = TRUE,
+      override.aes = list(
+        shape = 16,
+        colour = "black",
+        fill = "black",
+        alpha = 1,
+        stroke = 0
+      )
+    )
+  )
+
+
+print(MDS_GenClass_plot)
+
+#Saving the file
+ggsave("MDS GenClass.pdf", 
+       device = cairo_pdf,
+       width = 80,
+       height = 80,
+       units = "mm")
+
+
+# Clinical Severity Plotting
+ClinSev_n_labels <- MDS_plot_df %>%
+  group_by(MDSGene_Clinical_Severity) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(y_top = 0.3)
+
+
+clinsev_cols <- c(
+    "Unknown" = "#5AAE9A",
+    "Severe (Null)" = "#F28E5C",
+    "Severe" = "#8FA3C7",
+    "Mild" = "#D98ACB",
+    "PD Risk Variant" = "#A6CE63",
+    "Not Reported" = "grey70")
+
+
+MDS_plot_df <- MDS_plot_df %>%
+  mutate(
+    MDSGene_Clinical_Severity = factor(
+      MDSGene_Clinical_Severity,
+      levels = c(
+        "Severe",
+        "Severe (Null)",
+        "Mild",
+        "PD Risk Variant",
+        "Unknown",
+        "Not Reported"
+      )
+    )
+  )
+
+
+MDS_ClinSev_plot <- ggplot() +
+  
+  # Boxplot
+  geom_boxplot(
+    data = MDS_plot_df,
+    aes(x = MDSGene_Clinical_Severity, y = MAVE_Score),
+    outlier.shape = NA,
+    fill = NA,
+    color = "black",
+    size = 0.1
+  ) +
+  
+  # --- Non-annotated variants
+  geom_quasirandom(
+    data = MDS_plot_df %>% filter(!Annotated),
+    aes(
+      x = MDSGene_Clinical_Severity,
+      y = MAVE_Score,
+      colour = MDSGene_Clinical_Severity,
+      shape = Barcode_Group
+    ),
+    width = 0.32,
+    size = 0.65,
+    alpha = 0.6,
+    stroke = 0.1
+  ) +
+  
+  # Annotated variants
+  geom_point(
+    data = MDS_plot_df %>% filter(Annotated),
+    aes(
+      x = x_nudged_clinsev,
+      y = MAVE_Score,
+      colour = MDSGene_Clinical_Severity,
+      fill = MDSGene_Clinical_Severity,
+      size = MDS_n_bin,
+      shape = Barcode_Group
+    ),
+    alpha = 0.6,
+    stroke = 0.1
+  ) +
+  
+  # Variant label connectors
+  geom_segment(
+    data = MDS_plot_df %>% filter(Annotated),
+    aes(
+      x = x_nudged_clinsev,
+      xend = x_nudged_clinsev + 0.15,
+      y = MAVE_Score,
+      yend = MAVE_Score + 0.08
+    ),
+    linewidth = 0.1,
+    colour = "black"
+  ) +
+  
+  # Variant labels
+  geom_text(
+    data = MDS_plot_df %>% filter(Annotated),
+    aes(
+      x = x_nudged_clinsev + 0.15,
+      y = MAVE_Score + 0.08,
+      label = Variant
+    ),
+    hjust = 0,
+    size = 2
+  ) +
+  
+  # Sample number labels
+  geom_text(
+    data = ClinSev_n_labels,
+    aes(
+      x = MDSGene_Clinical_Severity,
+      y = y_top,
+      label = paste0("n = ", n)
+    ),
+    inherit.aes = FALSE,
+    size = 2
+  ) +
+  
+  # Point size scale
+  scale_size_manual(
+    name = "Case Count:",
+    values = c(
+      "1–10" = 0.75,
+      "11–25" = 1,
+      "26–100" = 2,
+      "101–500" = 3,
+      "501–10000" = 4,
+      "10000+" = 5
+    )
+  ) +
+  scale_shape_manual(
+    values = c(
+      "≥3 barcodes" = 16,
+      "<3 barcodes" = 1
+    ),
+    guide = "none"
+  ) +
+  # STOP control median line
+  geom_hline(
+    yintercept = stop_median,
+    colour = "darkred",
+    linewidth = 1,
+    alpha = 0.25
+  )+
+  
+  geom_hline(
+    yintercept = 0,
+    color = "darkgreen",
+    alpha = 0.75,
+    linewidth = 0.15,
+    linetype = "dashed"
+  ) +
+  
+  # Clinical severity colours
+  scale_color_manual(values = clinsev_cols, guide = "none") +
+  scale_fill_manual(values = clinsev_cols, guide = "none") +
+  
+  scale_y_continuous(
+    limits = c(-1.25, 0.3),
+    breaks = seq(-1.25, 0.25, by = 0.25)
+  ) +
+  scale_x_discrete(
+    labels = c(
+      "Unknown" = "Unknown",
+      "Severe (Null)" = "Severe\n(Null)",
+      "Severe" = "Severe",
+      "Mild" = "Mild",
+      "PD Risk Variant" = "PD Risk",
+      "Not Reported" = "Not Reported"
+    )
+  ) +
+  
+  theme_bw() +
+  theme(
+    panel.background = element_rect(fill = "transparent", colour = NA),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.1),
+    plot.background = element_rect(fill = "transparent", colour = NA),
+    
+    legend.background = element_rect(fill = "transparent", colour = NA),
+    
+    panel.grid.major.x = element_line(color = "gray90",linewidth = 0.1),
+    panel.grid.major.y = element_line(color = "gray90",linewidth = 0.1),
+    panel.grid.minor = element_blank(),
+    
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.box = "horizontal",
+    
+    legend.title = element_text(size = 6,face = "bold"),
+    legend.text = element_text(size = 6),
+    legend.spacing.x = unit(0.05, "cm"),
+    legend.spacing.y = unit(0.02, "cm"),
+    legend.key.width = unit(0.25, "cm"),
+    legend.key.height = unit(0.25, "cm"),
+    legend.margin = margin(0,0,0,0),
+    legend.box.margin = margin(0,0,0,0),
+    
+    axis.title.x = element_text( size = 7, face = "bold"),
+    axis.text.x = element_text( size = 7),
+    axis.text.y = element_text( size = 7),
+    axis.title.y = element_text( size = 7, face = "bold" ),
+    axis.ticks = element_line( colour = "black", linewidth = 0.1 ),
+    axis.ticks.length = unit(0.1, "cm")) +
+  
+  labs(
+    x = "Clinical Severity",
+    y = "Flow-Seq Score"
+  ) +
+  
+  guides(
+    size = guide_legend(
+      nrow = 2,
+      byrow = TRUE,
+      override.aes = list(
+        shape = 16,
+        colour = "black",
+        fill = "black",
+        alpha = 1,
+        stroke = 0
+      )
+    )
+  )
+
+print(MDS_ClinSev_plot)
+
+
+#Saving the file
+ggsave("ClinicalSeverity_plot.pdf",
+       plot = MDS_ClinSev_plot,
+       device = cairo_pdf,
+       width = 85,
+       height = 85,
+       units = "mm")
+
+```
+
+
+# Run Statistical Analysis of MAVE Flow-seq Scores by Clinical Severity Group
+```{r Calculate Statistical Comparison between Clinical Severity Groups}
+ClinSev_forStats <- MDS_plot_df %>%
+  filter(!is.na(MDSGene_Clinical_Severity)) %>%
+  mutate(
+    Clinical_Severity_combined = case_when(
+      MDSGene_Clinical_Severity %in% c("Severe", "Severe (Null)") ~ "Severe GD",
+      TRUE ~ MDSGene_Clinical_Severity
+    )
+  ) 
+
+ClinSev_forStats %>%
+  filter(Clinical_Severity_combined == "Severe GD") %>%
+  summarise(
+    mean_MAVE = mean(MAVE_Score, na.rm = TRUE)
+  )
+
+kruskal.test(MAVE_Score ~ Clinical_Severity_combined, data = ClinSev_forStats)
+
+ClinSevStats <- ClinSev_forStats %>%
+  dunn_test(
+    MAVE_Score ~ Clinical_Severity_combined,
+    p.adjust.method = "BH"
+  )
+
+```
+
+
+# Generate Sankey Plot of MDSGene Annotated GBA1 Variants
+
+```{R plotting- Sankey Plot Generation}
+Sankey_df <- MDS_plot_df %>%
+  filter(
+    !is.na(MDSGene_Genetic_Classification),
+    !is.na(MDSGene_Clinical_Severity)
+  ) %>%
+  count(
+    MDSGene_Genetic_Classification,
+    MDSGene_Clinical_Severity,
+    name = "Freq"
+  )
+
+Sankey_plot <- ggplot(
+  Sankey_df,
+  aes(
+    axis1 = MDSGene_Genetic_Classification,
+    axis2 = MDSGene_Clinical_Severity,
+    y = Freq
+  )
+) +
+  
+  geom_alluvium(
+    aes(fill = MDSGene_Genetic_Classification),
+    alpha = 0.7,
+    width = 0.005
+  ) +
+  
+  geom_stratum(
+    aes(fill = after_stat(stratum)),
+    width = 0.05,
+    colour = "black",
+    linewidth = 0.1
+  ) +
+  
+  scale_fill_manual(
+    values = c(
+      "Pathogenic" = "#C62828",
+      "Likely Pathogenic" = "#F9A825",
+      "Benign" = "#1565C0",
+      "Likely Benign" = "#4FC3F7",
+      "VUS" = "#7E57C2",
+      "Unknown" = "#5AAE9A",
+      "Severe (Null)" = "#F28E5C",
+      "Severe" = "#8FA3C7",
+      "Mild" = "#D98ACB",
+      "PD Risk Variant" = "#A6CE63",
+      "Not Reported" = "grey70"
+    ),
+    guide = "none"
+  ) +
+  
+  geom_text(
+    stat = "stratum",
+    aes(label = after_stat(stratum)),
+    size = 4
+  ) +
+  
+  scale_x_discrete(
+    limits = c(
+      "MDSGene_Genetic_Classification",
+      "MDSGene_Clinical_Severity"
+    )
+  ) +
+  
+  theme_void() +
+  theme(
+    text = element_text(family = "Arial"))
+
+print(Sankey_plot)
+
+ggsave("Sankey_plot.pdf",
+       device = cairo_pdf,
+       plot = Sankey_plot, 
+       width = 8, height = 6, dpi = 300,
+       bg = "transparent")
+
+```
+
+
+# Generate Volcano Plots of MAVE Flow-seq Scores for MDSGene-Annotated Variants
+
+Generate two volcano plots:
+
+1. MDSGene-annotated variants of uncertain significance against MAVE Flow-seq scores.
+2. MDSGene-annotated pathogenic, likely pathogenic, benign, and likely benign variants against MAVE Flow-seq scores.
+
+```{r plotting- Volcano Plot Generation}
+AllVUSSubset <- MDS_MissenseNonsense_Subset %>%
+  filter(MDSGene_Genetic_Classification == "VUS")
+
+VUS_Volcano_plot <- ggplot(
+  AllVUSSubset,
+  aes(
+    x = MAVE_Score,
+    y = -log10(MAVE_Empirical_p_Value)
+  )
+) +
+  geom_point(
+    aes(shape = Barcode_Group),
+    colour = "#7E57C2",   
+    alpha = 0.5,
+    size = 2,
+    stroke = 0.1
+  ) +
+  
+  geom_text_repel(
+    data = AllVUSSubset %>% filter(Variant %in% Annotated),
+    aes(label = Variant),
+    size = 2,
+    force = 8,
+    box.padding = 0.8,
+    point.padding = 0,
+    min.segment.length = 0,
+    segment.color = "black",
+    segment.size = 0.1,
+    max.overlaps = Inf
+  ) +
+  
+  geom_hline(
+    yintercept = -log10(0.05),
+    linetype = "dashed",
+    colour = "red",
+    linewidth = 0.15
+  ) +
+  
+  geom_vline(
+    xintercept = 0,
+    colour = "darkgreen",
+    linetype = "solid",
+    linewidth = 0.15
+  ) +
+  
+  scale_shape_manual(
+    values = c(
+      "≥3 barcodes" = 16,
+      "<3 barcodes" = 1
+    ),
+    guide = "none"
+  ) + 
+  
+  scale_x_continuous(
+    limits = c(-1.25, 0.3),
+    breaks = seq(-1.25, 0.25, by = 0.25)) +
+  scale_y_continuous(limits = c(0, 4)) +
+  
+  labs(
+    x = "Flow-Seq Score",
+    y = expression(-log[10]("empirical p value"))
+  ) +
+  theme_bw() +
+  theme(
+    panel.background = element_rect(fill = "transparent", colour = NA),
+    panel.border = element_blank(),
+    plot.background = element_rect(fill = "transparent", colour = NA),
+    
+    panel.grid.major.x = element_line( color = "gray90", linewidth = 0.1),
+    panel.grid.major.y = element_line( color = "gray90", linewidth = 0.1),
+    panel.grid.minor = element_blank(),
+    
+    axis.title.x = element_text(size = 8,face = "bold" ),
+    axis.title.y = element_text( size = 8,face = "bold"),
+    axis.text.x = element_text( size = 8),
+    axis.text.y = element_text(size = 8),
+    axis.ticks = element_line( colour = "black", linewidth = 0.1),
+    axis.ticks.length = unit(0.1, "cm"),
+    axis.line = element_line(colour = "black",linewidth = 0.15)
+  )
+
+print(VUS_Volcano_plot)
+
+
+ggsave("VUS_Volcano_plot.pdf",
+       plot = VUS_Volcano_plot, 
+       device = cairo_pdf,
+       width = 85,
+       height = 85,
+       units = "mm")
+
+
+#Volcano plot: pathogenic, likely pathogenic, benign, likely benign
+
+AllPathogenicBenign_Subset <- MDS_MissenseNonsense_Subset %>%
+  filter(MDSGene_Genetic_Classification %in% c("Pathogenic", "Likely Pathogenic", "Benign", "Likely Benign")) %>%
+  mutate(Annotated = Variant %in% Annotated)
+
+Pathogenic_Benign_Volcano_plot <- ggplot(
+  AllPathogenicBenign_Subset,
+  aes(
+    x = MAVE_Score,
+    y = -log10(MAVE_Empirical_p_Value),
+    color = MDSGene_Genetic_Classification,
+    shape = Barcode_Group
+  )
+) +
+  
+  geom_point(
+    alpha = 0.4,
+    size = 2,
+    stroke = 0.1  
+  ) +
+  
+  geom_text_repel(
+    data = AllPathogenicBenign_Subset %>% filter(Annotated),
+    aes(label = Variant),
+    size = 2,
+    force = 8,
+    box.padding = 0.8,
+    point.padding = 0,
+    min.segment.length = 0,
+    segment.color = "black",
+    segment.size = 0.1,
+    max.overlaps = Inf
+  ) +
+  
+  geom_vline(
+    xintercept = 0,
+    colour = "darkgreen",
+    linewidth = 0.15
+    
+  ) +
+  
+  geom_hline(
+    yintercept = -log10(0.05),
+    linetype = "dashed",
+    colour = "red",
+    linewidth = 0.15
+  ) +
+  
+  scale_color_manual(
+    name = "Genetic Classification",
+    values = c(
+      "Pathogenic" = "#C62828",
+      "Likely Pathogenic" = "#F9A825",
+      "Benign" = "#1565C0",
+      "Likely Benign" = "#4FC3F7"
+    ),
+    guide = "none"
+  ) +
+  
+  scale_shape_manual(
+      values = c(
+        "≥3 barcodes" = 16,
+        "<3 barcodes" = 1),   
+    guide = "none"
+  ) +
+  
+  scale_x_continuous(
+    limits = c(-1.25, 0.3),
+    breaks = seq(-1.25, 0.25, by = 0.25)) +
+  scale_y_continuous(limits = c(0, 4)) +
+  labs(
+    x = "Flow-Seq Score",
+    y = expression(-log[10]("empirical p value"))
+  ) +
+  theme_bw() +
+  theme(
+    panel.background = element_rect(fill = "transparent", colour = NA),
+    panel.border = element_blank(),
+    plot.background = element_rect(fill = "transparent", colour = NA),
+    
+    panel.grid.major.x = element_line( color = "gray90", linewidth = 0.1),
+    panel.grid.major.y = element_line( color = "gray90", linewidth = 0.1),
+    panel.grid.minor = element_blank(),
+    
+    axis.title.x = element_text( size = 8,  face = "bold"),
+    axis.title.y = element_text( size = 8, face = "bold"),
+    
+    axis.text.x = element_text(  size = 8),
+    axis.text.y = element_text( size = 8),
+    
+    axis.ticks = element_line( colour = "black",linewidth = 0.1),
+    axis.ticks.length = unit(0.1, "cm"),
+    axis.line = element_line(colour = "black",linewidth = 0.15
+    )
+  )
+
+
+print(Pathogenic_Benign_Volcano_plot)
+
+ggsave("MDS All Pathogenic_Benign_Volcano_plot.pdf",
+       plot = Pathogenic_Benign_Volcano_plot, 
+       device = cairo_pdf,
+       width = 85,
+       height = 85,
+       units = "mm")
+
+
+```
+
+
+

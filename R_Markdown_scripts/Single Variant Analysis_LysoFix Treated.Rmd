@@ -1,0 +1,409 @@
+---
+title: "Analysis of GCase Activity in GBA1 Single Variant Cell Lines"
+output: html_document
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Overview
+This analysis investigates the difference in GCase activity within GBA1 single variant expressing cell lines treated with LysoFix.
+
+Analysis included shown in figure 5
+
+```{r packages}
+library(readxl)
+library(writexl)
+library(tidyr)
+library(dplyr)
+library(ggrepel)
+library(ggplot2)
+library(multcomp)
+
+```
+
+# Load raw data
+Input flow cytometry analysis of LysoFix treatment within each GBA1 single variant expressing line and MAVE flow-seq data
+
+```{r load-data}
+SingleVariant_Input <- readxl::read_excel("Single Variant Raw_LysoFix.xlsx")
+MAVE_MasterFile_Input <- readxl::read_excel("Supplementary Table 2_MAVE Master File.xlsx")
+```
+
+# Preparing Data
+```{r preparing data}
+ControlVariant <- c("Unmodified Cells", "KO", "WT")
+StartCodon_Variant <- c("M1A", "M21A")
+WorseThanStopCodon_Variant <- c("D166G", "Y352K")
+PathogenicVariant <- c("R159W", "G241R", "V414L", "V433L", "D448H", "L483P", "R502C")
+LikelyPathogenicVariant <- c("S310G", "N409S", "W417G", "V437I", "V499L")
+BenignVariant <- "E365K"
+VUS <- c("R83C", "T408M", "N231K", "R324H", "P358L", "V391L", "A495P")
+
+Input_annotated <- SingleVariant_Input %>%
+  filter(Condition %in% "LysoFix") %>%
+  dplyr::select(Test, Cell_Line, Condition, Median, Robust_SD, Median_FoldChange, Median_FoldChange_Reduction) %>%
+  mutate(MAVE_grouping = case_when(
+    Cell_Line %in% ControlVariant ~ "Control",
+    Cell_Line %in% PathogenicVariant ~ "Pathogenic",
+    Cell_Line %in% LikelyPathogenicVariant ~ "Likely Pathogenic",
+    Cell_Line %in% BenignVariant ~ "Benign",
+    Cell_Line %in% VUS ~ "VUS",
+    Cell_Line %in% StartCodon_Variant ~ "Start Codon",
+    Cell_Line %in% WorseThanStopCodon_Variant ~ "Worse than Stop Codon",
+    TRUE ~ NA_character_   
+  )) %>%
+  mutate(Cell_Line = factor(Cell_Line, levels = c("Unmodified Cells", "KO", "WT",
+                                                  "R159W", "G241R", "V414L", "V433L", 
+                                                  "D448H", "L483P", "R502C", "S310G", 
+                                                  "N409S", "W417G", "V437I", "V499L",
+                                                  "E365K",
+                                                  "R83C", "N231K", "R324H", "P358L", 
+                                                  "V391L", "T408M", "A495P",
+                                                  " ",
+                                                  "M1A", "M21A",
+                                                  "D166G", "Y352K")))  %>%
+  mutate(MAVE_grouping = factor(MAVE_grouping, levels = c("Control", "Pathogenic",
+                                                          "Likely Pathogenic", 
+                                                          "Benign",
+                                                          "VUS",
+                                                          "Start Codon",
+                                                          "Worse than Stop Codon"))) 
+```
+
+# Performing statistical analysis 
+```{r stats analysis}
+
+Input_annotated$Cell_Line <- relevel(Input_annotated$Cell_Line, ref = "WT")
+levels(Input_annotated$Cell_Line)
+
+# Stats
+model <- aov(Median_FoldChange ~ Cell_Line, data = Input_annotated)
+
+glht_model <- glht(
+  model,
+  linfct = mcp(Cell_Line = "Dunnett")
+)
+
+dunnett <- summary(glht_model)
+
+estimates <- dunnett$test$coefficients
+pvals <- dunnett$test$pvalues
+tstats <- dunnett$test$tstat
+se <- sqrt(diag(vcov(glht_model)))
+
+Dunnett_table <- data.frame(
+  comparison = names(estimates),
+  estimate = estimates,
+  std_error = se,
+  t_stat = tstats,
+  p_value = pvals
+)
+
+
+Dunnett_table$significance <- cut(Dunnett_table$p_value,
+                                            breaks = c(-Inf, 0.0001, 0.001, 0.01, 0.05, Inf),
+                                            labels = c("****", "***", "**", "*", "ns"))
+
+Stats <- Dunnett_table %>%
+  mutate(Variant = sub(" - WT$", "", comparison))
+```
+
+# Plotting Single Variant GCase Assay Data
+```{r plotting}
+
+sig_positions <- Input_annotated %>%
+  group_by(Cell_Line) %>%
+  summarise(
+    y_pos = max(Median_FoldChange, na.rm = TRUE) +
+      if (as.character(first(Cell_Line)) %in% c("R502C", "V414L", "M1A")) {
+        0.1
+      } else {
+        0.05
+      },
+    .groups = "drop"
+  )
+
+# Merge with Dunnett significance table
+sig_labels <- Stats %>%
+  dplyr::select(Variant, significance) %>%
+  rename(Cell_Line = Variant) %>%
+  left_join(sig_positions, by = "Cell_Line")
+
+
+Selection_Colours <- c("Control" = "white", 
+                       "Pathogenic" = "#C62828",
+                       "Likely Pathogenic" = "#F9A825",
+                       "Benign" = "#1565C0",
+                       "VUS" = "#7E57C2",
+                       "Start Codon" = "grey",
+                       "Worse than Stop Codon" = "black")
+
+# Plotting Median Fold Change for each variant
+MedianFoldChange_TestComp_plot <- Input_annotated %>%
+  ggplot(aes(x = Cell_Line, y = Median_FoldChange)) +
+  
+  # mean bar
+  stat_summary(aes(fill = MAVE_grouping),
+               fun = mean, 
+               geom = "col", 
+               width = 0.7, 
+               color = "black",  
+               linewidth = 0.1 , alpha = 0.6) +
+
+  scale_fill_manual(values = Selection_Colours,
+                    name = NULL) +
+  # individual points
+  geom_jitter(
+    color = "black",
+    width = 0.1,
+    height = 0,
+    size = 0.5,
+    shape = 16,
+    alpha = 1
+  ) +
+  
+  # SE error bars
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    width = 0.7,    
+    color = "black",  
+    linewidth = 0.1  
+  ) +
+
+  geom_hline(yintercept = 1, 
+             color = "darkgreen", 
+             alpha = 1, 
+             linewidth = 0.1,    
+             linetype = "dashed") + 
+  geom_text(
+    data = sig_labels,
+    aes(x = Cell_Line,
+        y = y_pos,
+        label = significance),
+    inherit.aes = FALSE,
+    size = 2,
+    fontface = "bold"
+  ) +
+  # axis limits
+  scale_y_continuous(
+    limits = c(0, 1.2),
+    expand = expansion(mult = c(0, 0.05))
+  ) +
+  scale_x_discrete(drop = FALSE) +
+  
+  labs(
+    x = "GBA1 Variant",
+    y = "Median Fold Change",
+  ) +
+  
+  theme_bw() +
+  theme(
+    # backgrounds
+    panel.background = element_rect(fill = "transparent", colour = NA),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.1),
+    plot.background  = element_rect(fill = "transparent", colour = NA),
+    legend.background = element_rect(fill = "transparent", colour = NA),
+    
+    # grid lines (light + clean)
+    panel.grid.major.x = element_line(color = "gray90", linewidth = 0.1),
+    panel.grid.major.y = element_line(color = "gray90", linewidth = 0.1),
+    panel.grid.minor   = element_blank(),
+    
+    axis.text.x = element_text(size = 6, angle = 55, hjust = 1),
+    axis.title.x = element_text(size = 6, face = "bold"),
+    axis.text.y = element_text(size = 6),
+    axis.title.y = element_text(size = 6, face = "bold"),
+    legend.title = element_text(size = 6, face = "bold"),
+    legend.text = element_text(size = 6),
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    
+    axis.ticks = element_line(colour = "black", linewidth = 0.1),
+    axis.ticks.length = unit(0.1, "cm"),
+    legend.key.width = unit(0.4, "cm"),
+    legend.key.height = unit(0.3, "cm")
+    )
+
+print(MedianFoldChange_TestComp_plot)
+
+ggsave("Median_FoldChange.pdf", 
+       device = cairo_pdf,
+       plot = MedianFoldChange_TestComp_plot, 
+       width = 100,
+       height = 100,
+       units = "mm",
+       bg = "transparent")
+```
+
+
+# Performing Comparison between MAVE Flow-Seq Scores and Single Variant Assay
+```{r MAVE vs Single Variant}
+
+Median_Summary_Table <- Input_annotated %>%
+  dplyr::select(Cell_Line, Test, Median_FoldChange_Reduction, MAVE_grouping) %>%
+  tidyr::pivot_wider(
+    names_from = Test,
+    values_from = Median_FoldChange_Reduction
+  ) %>%
+  rowwise() %>%
+  mutate(
+    Flow_N   = sum(!is.na(c(`Exp 1`, `Exp 2`, `Exp 3`))),
+    Flow_Mean = mean(c(`Exp 1`, `Exp 2`, `Exp 3`), na.rm = TRUE),
+    Flow_SD   = sd(c(`Exp 1`, `Exp 2`, `Exp 3`), na.rm = TRUE),
+    Flow_SE   = Flow_SD / sqrt(Flow_N),
+    Flow_Min  = min(c(`Exp 1`, `Exp 2`, `Exp 3`), na.rm = TRUE),
+    Flow_Max  = max(c(`Exp 1`, `Exp 2`, `Exp 3`), na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  dplyr::rename(Variant = Cell_Line)
+
+MAVE_Plus_Flow <- MAVE_MasterFile_Input %>%
+  filter(Variant %in% c(StartCodon_Variants, WorseThanStopCodon_Variants, Pathogenic, LikelyPathogenic, Benign, VUS)) %>%
+  dplyr::select(
+    Variant,
+    MAVE_Score,
+  ) %>%
+  mutate(
+    MAVE_Score = as.numeric(MAVE_Score),
+  ) %>%
+  left_join(Median_Summary_Table, by = "Variant")
+
+
+# Calculating Pearson Correlation 
+Correlation_Data <- MAVE_Plus_Flow %>%
+  filter(
+    !is.na(MAVE_Score),
+    !is.na(Flow_Mean)
+  )
+
+Pearson_test <- cor.test(
+  Correlation_Data$MAVE_Score,
+  Correlation_Data$Flow_Mean,
+  method = "pearson"
+)
+
+# Extract Pearson correlation statistics 
+r <- unname(Pearson_test$estimate) 
+p <- Pearson_test$p.value 
+CI <- Pearson_test$conf.int 
+
+# Display results Pearson_test 
+r 
+p 
+CI 
+
+# Range of MAVE scores used in the Pearson correlation 
+range(Correlation_Data$MAVE_Score, na.rm = TRUE)
+
+
+Spearman_test <- cor.test(
+  Correlation_Data$MAVE_Score,
+  Correlation_Data$Flow_Mean,
+  method = "spearman",
+  exact = FALSE
+)
+
+# Extract Spearman correlation statistics 
+Spearman_r <- unname(Spearman_test$estimate) 
+Spearman_p <- Spearman_test$p.value 
+
+# Display Spearman results 
+Spearman_test 
+Spearman_r 
+Spearman_p
+
+#Plotting MAVE vs Single Variant Flow
+MAVE_vs_Flow_Plot <- ggplot(MAVE_Plus_Flow, aes(x = MAVE_Score, y = Flow_Mean)) +
+  
+  geom_vline(xintercept = 0, color = "darkgreen", alpha = 0.9, linetype = "dashed", linewidth = 0.15) +
+  
+  geom_hline(yintercept = 0, color = "darkgreen", alpha = 0.9, linetype = "dashed", linewidth = 0.15) +
+  
+  geom_smooth(method = "lm",
+              se = TRUE,        
+              color = "black",
+              linewidth = 0.2) +
+  
+
+  geom_point(aes(color = MAVE_grouping),
+             size = 1, alpha = 0.6, shape = 16) +
+
+
+  geom_text_repel(
+    aes(label = Variant),
+    size = 2,
+    box.padding = 0.8, 
+    point.padding = 0.1, 
+    segment.color = "black",   
+    segment.size = 0.25,
+    nudge_y = 0.08,
+    max.overlaps = Inf           
+  ) +
+  
+  # apply your custom colours
+  scale_color_manual(values = Selection_Colours,
+                     name = NULL) +
+  
+  # y-axis limits
+  scale_y_continuous(
+    limits = c(-125, 25),
+    breaks = c(-125, -100, -75, -50, -25, 0)
+  ) +
+  scale_x_continuous(
+    limits = c(-1.3, 0.2),
+    breaks = c(-1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0)
+  ) +
+  
+  labs(
+    x = "Flow-Seq Variant Score",
+    y = "Single Variant Validation\n% Fold Change Reduction",
+    color = "Selection Reasoning"
+  ) +
+  annotate("text", x = Inf, y = Inf,
+           label = paste0("r = ", round(r, 3)),
+           hjust = 1.1, vjust = 1.5, size = 2) +
+  theme_bw() +
+  theme(
+    panel.background = element_rect(fill = "transparent", colour = NA),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.1),
+    plot.background  = element_rect(fill = "transparent", colour = NA),
+    legend.background = element_rect(fill = "transparent", colour = NA),
+    
+    # grid lines (light + clean)
+    panel.grid.major.x = element_line(color = "gray90", linewidth = 0.1),
+    panel.grid.major.y = element_line(color = "gray90", linewidth = 0.1),
+    panel.grid.minor   = element_blank(),
+    
+    axis.text.x = element_text(size = 8),
+    axis.title.x = element_text(size = 8, face = "bold"),
+    axis.text.y = element_text(size = 8),
+    axis.title.y = element_text(size = 8, face = "bold"),
+    legend.title = element_text(size = 8, face = "bold"),
+    legend.text = element_text(size = 8),
+    
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.key.width = unit(0.4, "cm"),
+    legend.key.height = unit(0.3, "cm"),
+    
+    axis.ticks = element_line(colour = "black", linewidth = 0.1),
+    axis.ticks.length = unit(0.1, "cm"),
+    axis.line = element_blank()
+)
+
+print(MAVE_vs_Flow_Plot)
+
+
+ggsave("MAVE_vs_Flow_Plot.pdf", 
+       device = cairo_pdf,
+       plot = MAVE_vs_Flow_Plot, 
+       width = 85,
+       height = 85,
+       units = "mm",
+       bg = "transparent")
+
+```
