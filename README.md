@@ -151,3 +151,6 @@ The following R Markdown (`.Rmd`) scripts were used to analyse and plot the expe
 **Script:** `MDSGene Annotation Analysis.Rmd`
 
 * This analysis investigates the MAVE flow-seq scores for GBA1 variants annotated by MDSGene.
+
+* Cite: [![DOI](https://zenodo.org/badge/1396657547.svg)](https://doi.org/10.5281/zenodo.24116674)
+* 
