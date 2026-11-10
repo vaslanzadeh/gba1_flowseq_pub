@@ -262,7 +262,7 @@ Median_Summary_Table <- Input_annotated %>%
   dplyr::rename(Variant = Cell_Line)
 
 MAVE_Plus_Flow <- MAVE_MasterFile_Input %>%
-  filter(Variant %in% c(StartCodon_Variants, WorseThanStopCodon_Variants, Pathogenic, LikelyPathogenic, Benign, VUS)) %>%
+  filter(Variant %in% c(StartCodon_Variant, WorseThanStopCodon_Variant, PathogenicVariant, LikelyPathogenicVariant, BenignVariant, VUS)) %>%
   dplyr::select(
     Variant,
     MAVE_Score,
