@@ -10,7 +10,7 @@ The analysis scripts are provided in this repository.
 
 All datasets required to run the scripts, including the input files for each step, are hosted separately on Zenodo because of file size limits:
 
-➡ [Download the dataset from Zenodo (DOI: 10.5281/zenodo.xxxxx)](https://doi.org/10.5281/zenodo.xxxxx)
+➡ [Download the dataset from Zenodo (DOI: 10.5281/zenodo.23169564)](https://doi.org/10.5281/zenodo.23169564)
 
 ## Step-by-step analysis
 
